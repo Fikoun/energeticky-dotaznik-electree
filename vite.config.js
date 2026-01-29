@@ -36,28 +36,22 @@ export default defineConfig({
           });
         }
       },
-      // Proxy for company-lookup.php specifically
-      '/company-lookup.php': {
+      // Proxy all PHP files to backend server
+      '^/.*\\.php$': {
         target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
         configure: (proxy, options) => {
           proxy.on('error', (err, req, res) => {
-            console.log('company-lookup proxy error', err);
+            console.log('PHP proxy error', err);
           });
           proxy.on('proxyReq', (proxyReq, req, res) => {
-            console.log('company-lookup: Sending Request to the Target:', req.method, req.url);
+            console.log('PHP Request:', req.method, req.url);
           });
           proxy.on('proxyRes', (proxyRes, req, res) => {
-            console.log('company-lookup: Received Response from the Target:', proxyRes.statusCode, req.url);
+            console.log('PHP Response:', proxyRes.statusCode, req.url);
           });
         }
-      },
-      // Direct proxy for PHP files in public
-      '/*.php': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-        secure: false
       }
     }
   },
