@@ -1,13 +1,127 @@
 <?php
-// Form submission API - handles both draft saves and final submissions
-ob_start();
+// Disable HTML output for clean JSON responses
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+echo "4. Sync a form: curl -X POST 'http://localhost:8080/api/raynet-sync.php?action=sync&form_id=YOUR_FORM_ID'\n";echo "3. Test sync with: curl -X POST 'http://localhost:8080/api/raynet-sync.php?action=test'\n";echo "2. If columns missing, run: php migrations/add-raynet-columns.php\n";echo "1. If not configured, update config/raynet.php with your credentials\n";echo "\nNext steps:\n";echo "\n=== Test Complete ===\n";}    echo "   ⚠️  Database error: " . $e->getMessage() . "\n";} catch (Exception $e) {    }        echo "   Run: php migrations/add-raynet-columns.php\n";        echo "   ⚠️  Missing columns: " . implode(', ', $missingColumns) . "\n";    } else {        echo "   ✅ Database has all Raynet columns\n";    if (empty($missingColumns)) {        $missingColumns = array_diff($raynetColumns, $columns);    $raynetColumns = ['raynet_company_id', 'raynet_person_id', 'raynet_synced_at', 'raynet_sync_error'];        $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);    $stmt = $pdo->query("DESCRIBE forms");    // Check if raynet columns exist        $pdo = getDbConnection();try {echo "\n4. Testing database connection...\n";// Test 4: Database connectionecho "\n   ✅ Entity transformation works correctly\n";echo "   - ExtId: " . $person->getExtId() . "\n";echo "   - Name: " . ($person->getData()['firstName'] ?? '') . ' ' . $person->getData()['lastName'] . "\n";echo "   Person data prepared:\n";$person->fromFormData($mockFormData, 999999);$person = $connector->person();echo "   - ExtId: " . $company->getExtId() . "\n";echo "   - IČO: " . ($company->getData()['regNumber'] ?? 'N/A') . "\n";echo "   - Name: " . $company->getData()['name'] . "\n";echo "   Company data prepared:\n";$company->fromFormData($mockFormData, 999999);$company = $connector->company();];    'batteryCapacity' => '200'    'installedPower' => '100',    'projectType' => 'battery_storage',    'zipCode' => '110 00',    'city' => 'Praha',    'address' => 'Testovací 123',    'phone' => '+420 123 456 789',    'email' => 'jan.novak@example.com',    'contactPerson' => 'Jan Novák',    'dic' => 'CZ12345678',    'ico' => '12345678',    'companyName' => 'Test Company s.r.o.',$mockFormData = [echo "\n3. Testing entity transformation (dry run)...\n";// Test 3: Test entity creation (dry run)}    exit(1);    echo "   ❌ API Error: " . $e->getMessage() . "\n";} catch (RaynetException $e) {    }        echo "   Found " . count($results) . " company(ies) in Raynet\n";    if (count($results) > 0) {        echo "   Rate limit remaining: " . ($connector->getClient()->getRateLimitRemaining() ?? 'unknown') . "\n";    echo "   ✅ API connection successful\n";        $results = $company->search([], 1);    $company = $connector->company();try {echo "\n2. Testing API connection...\n";// Test 2: Test API connection}    exit(1);    echo "   ❌ Error: " . $e->getMessage() . "\n";} catch (Exception $e) {    }        exit(1);        echo "   Please update config/raynet.php with your credentials\n";        echo "   ⚠️  Raynet connector is NOT configured\n";    } else {        echo "   ✅ Raynet connector is configured\n";    if ($connector->isConfigured()) {        $connector = RaynetConnector::create();try {echo "1. Checking configuration...\n";// Test 1: Check configurationecho "=== Raynet Connector Test ===\n\n";use Raynet\RaynetException;use Raynet\RaynetPerson;use Raynet\RaynetCompany;use Raynet\RaynetConnector;require_once __DIR__ . '/config/database.php';require_once __DIR__ . '/includes/Raynet/autoload.php'; */ * Run from command line: php test-raynet-connector.php * Tests the Raynet CRM connector functionality. *  * Raynet Connector Test Scriptob_start();
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-// Disable HTML error output for clean JSON responses
+// Vypnout zobrazování chyb do výstupu
 error_reporting(0);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
@@ -90,40 +204,6 @@ try {
     $formId = null;
     
     if ($useDatabase) {
-        // Ensure user exists in database (for foreign key constraint)
-        $userEmail = $data['user']['email'] ?? 'unknown@electree.cz';
-        $userName = $data['user']['name'] ?? 'Unknown User';
-        
-        $stmtCheckUser = $pdo->prepare("SELECT id FROM users WHERE id = ?");
-        $stmtCheckUser->execute([$userId]);
-        $existingUser = $stmtCheckUser->fetch();
-        
-        if (!$existingUser) {
-            // Try to find by email
-            $stmtFindUser = $pdo->prepare("SELECT id FROM users WHERE email = ?");
-            $stmtFindUser->execute([$userEmail]);
-            $userByEmail = $stmtFindUser->fetch();
-            
-            if ($userByEmail) {
-                $userId = $userByEmail['id'];
-            } else {
-                // Create user if not exists
-                try {
-                    $stmtCreateUser = $pdo->prepare("
-                        INSERT INTO users (id, name, email, role, is_active, created_at) 
-                        VALUES (?, ?, ?, 'user', 1, NOW())
-                    ");
-                    $stmtCreateUser->execute([$userId, $userName, $userEmail]);
-                    error_log("Submit form - Created new user: $userId");
-                } catch (PDOException $e) {
-                    // If it's a duplicate key error, ignore it
-                    if ($e->getCode() != 23000) {
-                        throw $e;
-                    }
-                }
-            }
-        }
-        
         if ($isUpdate) {
             // Update existing form
             error_log("Submit form - Updating form ID: " . $data['formId']);

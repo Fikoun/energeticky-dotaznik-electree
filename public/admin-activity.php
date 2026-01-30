@@ -62,6 +62,9 @@ header('Content-Type: text/html; charset=utf-8');
                         <a href="admin-forms.php" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm font-medium">
                             📝 Formuláře
                         </a>
+                        <a href="admin-sync.php" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm font-medium">
+                            ⌘ Synchronizace
+                        </a>
                         <a href="admin-activity.php" class="border-primary-500 text-primary-600 border-b-2 py-4 px-1 text-sm font-medium">
                             📋 Aktivita
                         </a>

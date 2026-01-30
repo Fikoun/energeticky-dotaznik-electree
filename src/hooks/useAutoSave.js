@@ -70,7 +70,7 @@ const useAutoSave = (formMethods, user, currentStep, delay = 3000) => {
         dataKeys: Object.keys(data).length 
       })
 
-      const response = await fetch('submit-form.php', {
+      const response = await fetch('/public/submit-form.php', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

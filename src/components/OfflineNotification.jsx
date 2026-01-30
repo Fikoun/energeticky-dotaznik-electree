@@ -46,7 +46,7 @@ const OfflineNotification = ({ isOnline }) => {
         const item = pendingItems[i];
         
         try {
-          const response = await fetch('submit-form.php', {
+          const response = await fetch('/public/submit-form.php', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

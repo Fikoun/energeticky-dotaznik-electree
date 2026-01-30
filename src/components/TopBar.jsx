@@ -30,7 +30,7 @@ const TopBar = ({
   }
 
   const handleAdminPanel = () => {
-    window.open('admin-dashboard.php', '_blank')
+    window.open('http://localhost:8080/public/admin-dashboard.php', '_blank')
   }
 
   return (
