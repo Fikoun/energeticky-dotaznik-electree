@@ -88,12 +88,10 @@ RewriteRule ^ index.html [L]
     Require all denied
 </FilesMatch>
 
-# Protect config directory from web access
-<DirectoryMatch "config">
-    <Files "*.php">
-        Require all denied
-    </Files>
-</DirectoryMatch>
+# Protect config files from direct access
+<FilesMatch "^(database|raynet)\.php$">
+    Require all denied
+</FilesMatch>
 
 # Enable gzip compression
 <IfModule mod_deflate.c>
