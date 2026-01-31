@@ -30,7 +30,8 @@ const TopBar = ({
   }
 
   const handleAdminPanel = () => {
-    window.open('http://localhost:8080/public/admin-dashboard.php', '_blank')
+    // Use relative URL so it works in both dev and production
+    window.open('/public/admin-dashboard.php', '_blank')
   }
 
   return (
