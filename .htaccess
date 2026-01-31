@@ -1,62 +1,34 @@
-# Základní .htaccess pro SPA aplikaci
+# EnergyForms .htaccess - Apache 2.4+ compatible
 RewriteEngine On
 
 # MIME typy
 AddType application/javascript .js
 AddType text/css .css
 
-# Zajistit, že PHP soubory se zpracovávají jako PHP
-AddType application/x-httpd-php .php
-AddHandler application/x-httpd-php .php
-
-# Povolit přístup k VŠEM PHP souborům bez autentifikace
-<Files "*.php">
-    Allow from all
-    Require all granted
-</Files>
-
-# Povolit přístup k debug souborům bez autentifikace
-<Files "debug-*.php">
-    Allow from all
-    Require all granted
-</Files>
-
-<Files "debug-*.html">
-    Allow from all
-    Require all granted
-</Files>
-
-<Files "quick-debug-test.php">
-    Allow from all
-    Require all granted
-</Files>
-
-# Explicitní povolení pro kritické PHP soubory
-<Files "test.php">
-    Allow from all
-    Require all granted
-</Files>
-
-<Files "auth.php">
-    Allow from all
-    Require all granted
-</Files>
-
-# CORS pro debug
+# CORS headers
 <IfModule mod_headers.c>
-    Header set Access-Control-Allow-Origin "*"
-    Header set Access-Control-Allow-Methods "POST, GET, OPTIONS"
-    Header set Access-Control-Allow-Headers "Content-Type"
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "POST, GET, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type"
 </IfModule>
 
-# SPA routing - přesměrování všech requestů na index.html (kromě .php souborů)
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_URI} !\.php$
-RewriteRule . /index.html [L]
+# Handle OPTIONS preflight
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ $1 [R=200,L]
 
-# Základní zabezpečení
+# Serve existing files directly (PHP, CSS, JS, images)
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# SPA routing - all other requests to index.html
+RewriteRule ^ index.html [L]
+
+# Protect sensitive files
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
 <Files ".env">
-    Order allow,deny
-    Deny from all
+    Require all denied
 </Files>
