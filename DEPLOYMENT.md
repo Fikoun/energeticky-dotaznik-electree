@@ -1,37 +1,49 @@
 # Production Deployment Checklist
 
-## Files to Deploy from `dist/` folder:
+## Build Process
+
+Run the build command which automatically copies PHP files:
+```bash
+npm run build
+```
+
+This will:
+1. Build React app to `dist/`
+2. Copy `auth.php` to `dist/auth.php`
+3. Copy API files to `dist/public/*.php`
+4. Create `dist/public/uploads/` directory
+
+## Files in `dist/` after build:
 
 ### Required Core Files:
 - ✅ index.html (main app entry)
 - ✅ assets/ folder (CSS and JS)
 - ✅ **auth.php** (authentication endpoint - CRITICAL!)
 
-### Required API Files (must be in same directory as index.html):
-- ✅ auth.php - Authentication (login/logout)
-- ✅ submit-form.php - Form submissions (in /public/ on production)
+### API Files in `dist/public/`:
+- ✅ submit-form.php - Form submissions & draft saves
 - ✅ get-user-forms.php - Load user forms
 - ✅ delete-form.php - Delete forms
-- ✅ company-lookup.php - Company IČO lookup
 - ✅ upload-handler.php - File uploads
 - ✅ immediate-upload.php - Immediate file uploads
+- ✅ uploads/ - Directory for uploaded files
 
 ### Directory Structure on Production:
 ```
 your-web-root/
 ├── index.html
-├── auth.php              ← MUST BE HERE
+├── auth.php              ← Authentication endpoint
 ├── test-api.php          ← Test file to verify PHP works
 ├── assets/
 │   ├── index-xxx.css
 │   └── index-xxx.js
-└── public/              ← API files  
+└── public/              ← API endpoints
     ├── submit-form.php
     ├── get-user-forms.php
     ├── delete-form.php
-    ├── company-lookup.php
     ├── upload-handler.php
-    └── immediate-upload.php
+    ├── immediate-upload.php
+    └── uploads/         ← Writable directory (chmod 755 or 777)
 ```
 
 ## Troubleshooting Empty Response from auth.php:
