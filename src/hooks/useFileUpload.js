@@ -21,7 +21,7 @@ export const useFileUpload = (formId, fieldName) => {
         formData.append('files[]', files[i])
       }
 
-      const response = await fetch('immediate-upload.php', {
+      const response = await fetch('/public/immediate-upload.php', {
         method: 'POST',
         body: formData
       })

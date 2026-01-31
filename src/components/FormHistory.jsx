@@ -14,7 +14,7 @@ const FormHistory = ({ user, onEditForm, onBackToForms }) => {
   const loadUserForms = async () => {
     try {
       console.log('Loading forms for user:', user.id)
-      const response = await fetch(`get-user-forms.php?userId=${user.id}`)
+      const response = await fetch(`/public/get-user-forms.php?userId=${user.id}`)
       console.log('Response status:', response.status)
       
       if (response.ok) {
@@ -37,7 +37,7 @@ const FormHistory = ({ user, onEditForm, onBackToForms }) => {
     if (!confirm('Opravdu chcete smazat tento formulář?')) return
 
     try {
-      const response = await fetch('delete-form.php', {
+      const response = await fetch('/public/delete-form.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ formId, userId: user.id })

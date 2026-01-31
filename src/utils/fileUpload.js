@@ -45,7 +45,7 @@ export const uploadFiles = async (formData, formId) => {
     console.log('Uploading files for form:', formId);
     
     // Upload files to server
-    const response = await fetch('upload-handler.php', {
+    const response = await fetch('/public/upload-handler.php', {
       method: 'POST',
       body: formDataToUpload
     });

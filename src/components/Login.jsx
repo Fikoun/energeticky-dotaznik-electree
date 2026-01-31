@@ -15,15 +15,15 @@ const Login = ({ onLogin }) => {
     try {
       console.log('Login attempt with:', { username: data.username })
       
-      // Volání auth API přes submit-form.php (dočasně místo auth.php)
-      const response = await fetch('./submit-form.php', {
+      // Call auth API
+      const response = await fetch('auth.php', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           action: 'login',
-          nickname: data.username, // Stále používáme "username" jako nickname
+          username: data.username,
           password: data.password,
           rememberMe: data.rememberMe || false
         })
@@ -248,7 +248,7 @@ const Login = ({ onLogin }) => {
                   onClick={async () => {
                     try {
                       console.log('=== GET DEBUG TEST ===');
-                      const response = await fetch('./submit-form.php');
+                      const response = await fetch('auth.php');
                       console.log('GET Status:', response.status);
                       console.log('GET Headers:', Object.fromEntries(response.headers));
                       const text = await response.text();
@@ -277,7 +277,7 @@ const Login = ({ onLogin }) => {
                   onClick={async () => {
                     try {
                       console.log('=== POST DEBUG TEST ===');
-                      const response = await fetch('./submit-form.php', {
+                      const response = await fetch('auth.php', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ action: 'debug' })
@@ -315,12 +315,12 @@ const Login = ({ onLogin }) => {
                 onClick={async () => {
                   try {
                     console.log('=== LOGIN TEST ===');
-                    const response = await fetch('./submit-form.php', {
+                    const response = await fetch('auth.php', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ 
                         action: 'login', 
-                        nickname: 'admin', 
+                        username: 'admin', 
                         password: 'admin123' 
                       })
                     });

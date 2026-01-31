@@ -62,6 +62,9 @@ header('Content-Type: text/html; charset=utf-8');
                         <a href="admin-forms.php" class="border-primary-500 text-primary-600 border-b-2 py-4 px-1 text-sm font-medium">
                             📝 Formuláře
                         </a>
+                        <a href="admin-sync.php" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm font-medium">
+                            ⌘ Synchronizace
+                        </a>
                         <a href="admin-activity.php" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm font-medium">
                             📋 Aktivita
                         </a>
@@ -459,6 +462,9 @@ header('Content-Type: text/html; charset=utf-8');
                                     <button onclick="viewFormDetail('${form.id}')" class="text-blue-600 hover:text-blue-900 mr-3">
                                         Detail
                                     </button>
+                                    <button onclick="syncWithRaynet('${form.id}')" class="text-purple-600 hover:text-purple-900 mr-3" title="Synchronizovat s Raynet">
+                                        ⌘ Sync
+                                    </button>
                                     <button onclick="changeFormStatus('${form.id}', '${form.status}')" class="text-green-600 hover:text-green-900 mr-3">
                                         Status
                                     </button>
@@ -849,6 +855,276 @@ header('Content-Type: text/html; charset=utf-8');
             document.body.appendChild(modal);
         }
 
+        // ========== Raynet Sync Functions ==========
+
+        async function syncWithRaynet(formId) {
+            log.info('Opening Raynet sync for form:', formId);
+            
+            const modal = document.getElementById('raynetSyncModal');
+            const content = document.getElementById('raynetSyncContent');
+            
+            modal.classList.remove('hidden');
+            
+            try {
+                // Search for matches in Raynet
+                const response = await fetch(`../api/raynet-contact-sync.php?action=search-contact&form_id=${formId}`);
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Nepodařilo se vyhledat kontakt v Raynet');
+                }
+                
+                displayRaynetMatches(formId, result.data);
+                
+            } catch (error) {
+                log.error('Raynet sync search failed', error);
+                content.innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="text-red-500 text-5xl mb-4">⚠️</div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">Chyba při vyhledávání</h3>
+                        <p class="text-gray-500">${error.message}</p>
+                        <button onclick="hideRaynetSyncModal()" 
+                                class="mt-4 px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400">
+                            Zavřít
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        function displayRaynetMatches(formId, data) {
+            const content = document.getElementById('raynetSyncContent');
+            const localData = data.local_data;
+            const matches = data.raynet_matches || [];
+            const companyMatches = data.company_matches || [];
+            
+            // Check if already synced
+            const alreadySynced = localData.already_synced.company_id || localData.already_synced.person_id;
+            
+            content.innerHTML = `
+                <!-- Local Data -->
+                <div class="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 class="text-md font-semibold text-blue-900 mb-3">📋 Lokální data (Form #${localData.form_id})</h4>
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                            <span class="font-medium text-gray-700">Kontaktní osoba:</span>
+                            <span class="text-gray-900 ml-2">${localData.contact_person || '-'}</span>
+                        </div>
+                        <div>
+                            <span class="font-medium text-gray-700">Email:</span>
+                            <span class="text-gray-900 ml-2">${localData.email || '-'}</span>
+                        </div>
+                        <div>
+                            <span class="font-medium text-gray-700">Společnost:</span>
+                            <span class="text-gray-900 ml-2">${localData.company_name || '-'}</span>
+                        </div>
+                        <div>
+                            <span class="font-medium text-gray-700">IČO:</span>
+                            <span class="text-gray-900 ml-2">${localData.ico || '-'}</span>
+                        </div>
+                        <div>
+                            <span class="font-medium text-gray-700">Telefon:</span>
+                            <span class="text-gray-900 ml-2">${localData.phone || '-'}</span>
+                        </div>
+                        ${alreadySynced ? `
+                        <div class="col-span-2 mt-2 p-2 bg-green-100 border border-green-300 rounded">
+                            <span class="font-medium text-green-800">✓ Již synchronizováno:</span>
+                            <span class="text-green-700 ml-2">
+                                Company #${localData.already_synced.company_id || '-'}, 
+                                Person #${localData.already_synced.person_id || '-'}
+                                (${localData.already_synced.synced_at || '-'})
+                            </span>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+
+                <!-- Raynet Matches -->
+                ${matches.length > 0 ? `
+                    <div class="mb-6">
+                        <h4 class="text-md font-semibold text-gray-900 mb-3">🔍 Nalezené shody v Raynet (${matches.length})</h4>
+                        <div class="space-y-3 max-h-96 overflow-y-auto">
+                            ${matches.map((match, index) => `
+                                <div class="border border-gray-300 rounded-lg p-4 hover:border-primary-500 transition-colors">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <div class="flex-1">
+                                            <div class="flex items-center space-x-2 mb-2">
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                    match.match_type === 'email' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                                                }">
+                                                    ${match.match_type === 'email' ? '📧 Shoda emailem' : '👤 Shoda jménem'}
+                                                </span>
+                                                <span class="text-sm text-gray-600">
+                                                    Score: ${match.match_score}%
+                                                </span>
+                                            </div>
+                                            <h5 class="text-md font-medium text-gray-900">
+                                                ${match.person.firstName || ''} ${match.person.lastName || ''}
+                                                ${match.person.id ? `<span class="text-xs text-gray-500">(#${match.person.id})</span>` : ''}
+                                            </h5>
+                                        </div>
+                                        <a href="https://app.raynet.cz/electree/?view=DetailView&en=Person&ei=${match.person.id}" 
+                                           target="_blank" 
+                                           class="text-primary-600 hover:text-primary-800 text-sm">
+                                            Otevřít v Raynet →
+                                        </a>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-3 text-sm mb-3">
+                                        <div>
+                                            <span class="font-medium text-gray-600">Email:</span>
+                                            <span class="ml-2">${match.person.contactInfo?.email || '-'}</span>
+                                        </div>
+                                        <div>
+                                            <span class="font-medium text-gray-600">Telefon:</span>
+                                            <span class="ml-2">${match.person.contactInfo?.tel1 || '-'}</span>
+                                        </div>
+                                        ${match.company ? `
+                                            <div class="col-span-2">
+                                                <span class="font-medium text-gray-600">Společnost:</span>
+                                                <span class="ml-2">${match.company.name || '-'}</span>
+                                                ${match.company.id ? `
+                                                    <a href="https://app.raynet.cz/electree/?view=DetailView&en=Company&ei=${match.company.id}" 
+                                                       target="_blank" 
+                                                       class="ml-2 text-primary-600 hover:text-primary-800 text-xs">
+                                                        (Otevřít →)
+                                                    </a>
+                                                ` : ''}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                    
+                                    <div class="flex space-x-2 mt-3 pt-3 border-t border-gray-200">
+                                        <button onclick="confirmRaynetSync(${formId}, ${match.person.id}, ${match.company?.id || null}, 'link')"
+                                                class="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+                                            Pouze propojit
+                                        </button>
+                                        <button onclick="confirmRaynetSync(${formId}, ${match.person.id}, ${match.company?.id || null}, 'update')"
+                                                class="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700">
+                                            Propojit a aktualizovat
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : `
+                    <div class="mb-6 text-center py-8 bg-gray-50 rounded-lg">
+                        <div class="text-gray-400 text-5xl mb-3">🔍</div>
+                        <h4 class="text-md font-medium text-gray-900 mb-1">Žádné shody nenalezeny</h4>
+                        <p class="text-gray-500 text-sm">V Raynet nebyl nalezen kontakt s odpovídajícím emailem ani jménem.</p>
+                    </div>
+                `}
+
+                <!-- Company Matches (for context) -->
+                ${companyMatches && companyMatches.length > 0 ? `
+                    <div class="mb-6">
+                        <h4 class="text-md font-semibold text-gray-900 mb-3">🏢 Nalezené společnosti (${companyMatches.length})</h4>
+                        <div class="space-y-2">
+                            ${companyMatches.map(company => `
+                                <div class="flex justify-between items-center p-3 border border-gray-200 rounded">
+                                    <div>
+                                        <span class="font-medium text-gray-900">${company.name || '-'}</span>
+                                        ${company.regNumber ? `<span class="text-sm text-gray-500 ml-2">(IČO: ${company.regNumber})</span>` : ''}
+                                    </div>
+                                    <a href="https://app.raynet.cz/electree/?view=DetailView&en=Company&ei=${company.id}" 
+                                       target="_blank" 
+                                       class="text-primary-600 hover:text-primary-800 text-sm">
+                                        Otevřít →
+                                    </a>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+
+                <!-- Create New Option -->
+                <div class="border-t pt-4">
+                    <button onclick="confirmRaynetSync(${formId}, null, null, 'create')"
+                            class="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
+                        ➕ Vytvořit nový kontakt v Raynet
+                    </button>
+                </div>
+
+                <!-- Close Button -->
+                <div class="mt-4 text-center">
+                    <button onclick="hideRaynetSyncModal()" 
+                            class="px-6 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400">
+                        Zavřít
+                    </button>
+                </div>
+            `;
+        }
+
+        async function confirmRaynetSync(formId, personId, companyId, mode) {
+            log.info('Confirming Raynet sync', { formId, personId, companyId, mode });
+            
+            const content = document.getElementById('raynetSyncContent');
+            content.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-12">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+                    <p class="text-gray-600">Synchronizuji kontakt...</p>
+                </div>
+            `;
+            
+            try {
+                const response = await fetch('../api/raynet-contact-sync.php?action=confirm-sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        form_id: formId,
+                        person_id: personId,
+                        company_id: companyId,
+                        update_mode: mode
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Synchronizace selhala');
+                }
+                
+                content.innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="text-green-500 text-6xl mb-4">✓</div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">Úspěšně synchronizováno</h3>
+                        <p class="text-gray-600 mb-4">${result.message || 'Kontakt byl úspěšně synchronizován s Raynet'}</p>
+                        <div class="text-sm text-gray-500 mb-4">
+                            <div>Company ID: ${result.data.company_id || '-'}</div>
+                            <div>Person ID: ${result.data.person_id || '-'}</div>
+                            <div>Režim: ${result.data.mode}</div>
+                        </div>
+                        <button onclick="hideRaynetSyncModal(); loadForms();" 
+                                class="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
+                            Zavřít
+                        </button>
+                    </div>
+                `;
+                
+                showToast('Kontakt byl úspěšně synchronizován s Raynet', 'success');
+                
+            } catch (error) {
+                log.error('Raynet sync confirmation failed', error);
+                content.innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="text-red-500 text-5xl mb-4">⚠️</div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">Chyba synchronizace</h3>
+                        <p class="text-gray-500 mb-4">${error.message}</p>
+                        <button onclick="hideRaynetSyncModal()" 
+                                class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400">
+                            Zavřít
+                        </button>
+                    </div>
+                `;
+                showToast('Synchronizace selhala: ' + error.message, 'error');
+            }
+        }
+
+        function hideRaynetSyncModal() {
+            document.getElementById('raynetSyncModal').classList.add('hidden');
+        }
+
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
             log.info('Forms page initializing...');
@@ -862,5 +1138,28 @@ header('Content-Type: text/html; charset=utf-8');
             });
         });
     </script>
+
+    <!-- Raynet Sync Modal -->
+    <div id="raynetSyncModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+        <div class="relative top-10 mx-auto p-5 border w-full max-w-6xl shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">Synchronizace kontaktu s Raynet</h3>
+                    <button onclick="hideRaynetSyncModal()" class="text-gray-400 hover:text-gray-600">
+                        <span class="sr-only">Zavřít</span>
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div id="raynetSyncContent">
+                    <div class="flex justify-center py-12">
+                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
