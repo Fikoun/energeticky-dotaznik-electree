@@ -196,4 +196,95 @@ class RaynetPerson extends RaynetEntity
             'lastName' => $parts[1]
         ];
     }
+    
+    /**
+     * Create person from additional contact data
+     * 
+     * @param array $contactData Contact data with name, position, phone, email, isPrimary
+     * @param string|int $formId Form ID for extId generation
+     * @param int $contactIndex Index of the contact for unique extId
+     * @return self
+     */
+    public function fromAdditionalContact(array $contactData, string|int $formId, int $contactIndex): self
+    {
+        // Parse contact name
+        $names = $this->parseContactName($contactData['name'] ?? '');
+        
+        // Build person data
+        $personData = [
+            'firstName' => $names['firstName'],
+            'lastName' => $names['lastName'],
+            'extId' => $this->generateExtId($formId) . "_contact_{$contactIndex}",
+            'securityLevel' => 1
+        ];
+        
+        // Add contact info
+        $contactInfo = [];
+        
+        if (!empty($contactData['email'])) {
+            $contactInfo['email'] = $contactData['email'];
+        }
+        
+        if (!empty($contactData['phone'])) {
+            $contactInfo['tel1'] = $contactData['phone'];
+            $contactInfo['tel1Type'] = 'mobil';
+        }
+        
+        if (!empty($contactInfo)) {
+            $personData['contactInfo'] = $contactInfo;
+        }
+        
+        // Add position as notice
+        $position = $contactData['position'] ?? 'kontaktní osoba';
+        $isPrimary = $contactData['isPrimary'] ?? false;
+        $personData['notice'] = "Dodatečná kontaktní osoba z EnergyForms\n" .
+                                "Form ID: {$formId}\n" .
+                                "Pozice: {$position}" .
+                                ($isPrimary ? "\n⭐ Primární kontakt pro projekt" : "");
+        
+        $this->data = $personData;
+        $this->extId = $personData['extId'];
+        
+        return $this;
+    }
+    
+    /**
+     * Sync additional contact with company linking
+     * 
+     * @param array $contactData Contact data
+     * @param string|int $formId Form ID
+     * @param int $contactIndex Contact index
+     * @param int|null $companyId Company ID to link to
+     * @return self
+     */
+    public function syncAdditionalContact(
+        array $contactData, 
+        string|int $formId, 
+        int $contactIndex,
+        ?int $companyId = null
+    ): self {
+        $this->fromAdditionalContact($contactData, $formId, $contactIndex);
+        
+        $extId = $this->extId;
+        
+        // Try to find existing
+        $existing = $this->findByExtId($extId);
+        
+        if ($existing) {
+            $this->id = $existing->getId();
+            $this->update();
+            error_log("Raynet: Updated additional contact {$contactIndex}: {$this->id}");
+        } else {
+            $this->create();
+            error_log("Raynet: Created additional contact {$contactIndex}: {$this->id}");
+        }
+        
+        // Link to company if provided
+        $position = $contactData['position'] ?? 'kontaktní osoba';
+        if ($companyId && !$this->isLinkedToCompany($companyId)) {
+            $this->linkToCompany($companyId, $position);
+        }
+        
+        return $this;
+    }
 }

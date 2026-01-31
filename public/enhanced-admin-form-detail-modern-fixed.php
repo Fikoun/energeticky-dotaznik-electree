@@ -711,6 +711,142 @@ function getStatusLabel($status) {
                 </div>
             <?php endfor; ?>
         </div>
+
+        <!-- Nahrané soubory -->
+        <?php
+        // Načtení souborů z databáze
+        $files_stmt = $conn->prepare("
+            SELECT id, field_name, original_name, file_name, file_path, file_size, mime_type, thumbnail_path, uploaded_at 
+            FROM form_files 
+            WHERE form_id = ? AND deleted_at IS NULL 
+            ORDER BY field_name, uploaded_at ASC
+        ");
+        $files_stmt->bind_param("s", $form_id);
+        $files_stmt->execute();
+        $files_result = $files_stmt->get_result();
+        $uploaded_files = [];
+        while ($file = $files_result->fetch_assoc()) {
+            $field = $file['field_name'];
+            if (!isset($uploaded_files[$field])) {
+                $uploaded_files[$field] = [];
+            }
+            $uploaded_files[$field][] = $file;
+        }
+        $files_stmt->close();
+
+        // Názvy polí souborů
+        $file_field_labels = [
+            'sitePhotos' => 'Fotografie místa instalace',
+            'visualizations' => 'Vizualizace a nákresy',
+            'projectDocumentationFiles' => 'Projektová dokumentace',
+            'distributionCurvesFile' => 'Odběrové křivky',
+            'billingDocuments' => 'Doklady o vyúčtování',
+            'cogenerationPhotos' => 'Fotografie kogenerační jednotky'
+        ];
+
+        // Formátování velikosti souboru
+        function formatFileSizeAdmin($bytes) {
+            if ($bytes == 0) return '0 B';
+            $units = ['B', 'KB', 'MB', 'GB'];
+            $factor = floor(log($bytes) / log(1024));
+            return round($bytes / pow(1024, $factor), 2) . ' ' . $units[$factor];
+        }
+
+        // Zjištění, zda je soubor obrázek
+        function isImageMimeType($mimeType) {
+            return strpos($mimeType, 'image/') === 0;
+        }
+        ?>
+
+        <?php if (!empty($uploaded_files)): ?>
+        <div class="mt-8 bg-white rounded-2xl shadow-lg overflow-hidden">
+            <div class="bg-gradient-to-r from-teal-500 to-teal-600 px-8 py-6">
+                <div class="flex items-center">
+                    <div class="bg-white/20 rounded-full p-3 mr-4">
+                        <i class="fas fa-paperclip text-2xl text-white"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-bold text-white">Nahrané soubory</h2>
+                        <p class="text-teal-100">Přílohy a dokumentace k formuláři</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6">
+                <?php foreach ($uploaded_files as $field_name => $files): ?>
+                    <div class="mb-6 last:mb-0">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                            <i class="fas fa-folder-open text-teal-500 mr-2"></i>
+                            <?= htmlspecialchars($file_field_labels[$field_name] ?? ucfirst($field_name)) ?>
+                            <span class="ml-2 text-sm font-normal text-gray-500">(<?= count($files) ?>)</span>
+                        </h3>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            <?php foreach ($files as $file): ?>
+                                <?php 
+                                    $isImage = isImageMimeType($file['mime_type'] ?? '');
+                                    $fileUrl = '/public/' . $file['file_path'];
+                                    $thumbUrl = $file['thumbnail_path'] ? '/public/' . $file['thumbnail_path'] : null;
+                                ?>
+                                <div class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white">
+                                    <?php if ($isImage): ?>
+                                        <!-- Náhled obrázku -->
+                                        <a href="<?= htmlspecialchars($fileUrl) ?>" target="_blank" class="block aspect-video bg-gray-100 relative group">
+                                            <img 
+                                                src="<?= htmlspecialchars($thumbUrl ?? $fileUrl) ?>" 
+                                                alt="<?= htmlspecialchars($file['original_name']) ?>"
+                                                class="w-full h-full object-cover"
+                                                loading="lazy"
+                                            />
+                                            <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                                <i class="fas fa-search-plus text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                            </div>
+                                        </a>
+                                    <?php else: ?>
+                                        <!-- Ikona pro ne-obrázky -->
+                                        <a href="<?= htmlspecialchars($fileUrl) ?>" target="_blank" class="block aspect-video bg-gray-50 flex items-center justify-center group">
+                                            <?php
+                                                $extension = strtolower(pathinfo($file['original_name'], PATHINFO_EXTENSION));
+                                                $iconClass = 'fa-file';
+                                                if ($extension === 'pdf') $iconClass = 'fa-file-pdf text-red-500';
+                                                elseif (in_array($extension, ['doc', 'docx'])) $iconClass = 'fa-file-word text-blue-500';
+                                                elseif (in_array($extension, ['xls', 'xlsx', 'csv'])) $iconClass = 'fa-file-excel text-green-500';
+                                                elseif (in_array($extension, ['dwg', 'dxf'])) $iconClass = 'fa-drafting-compass text-orange-500';
+                                            ?>
+                                            <i class="fas <?= $iconClass ?> text-5xl group-hover:scale-110 transition-transform"></i>
+                                        </a>
+                                    <?php endif; ?>
+                                    
+                                    <!-- Info o souboru -->
+                                    <div class="p-3">
+                                        <p class="text-sm font-medium text-gray-900 truncate" title="<?= htmlspecialchars($file['original_name']) ?>">
+                                            <?= htmlspecialchars($file['original_name']) ?>
+                                        </p>
+                                        <div class="flex items-center justify-between mt-1">
+                                            <span class="text-xs text-gray-500">
+                                                <?= formatFileSizeAdmin($file['file_size']) ?>
+                                            </span>
+                                            <span class="text-xs text-gray-400">
+                                                <?= date('d.m.Y', strtotime($file['uploaded_at'])) ?>
+                                            </span>
+                                        </div>
+                                        <a 
+                                            href="<?= htmlspecialchars($fileUrl) ?>" 
+                                            download="<?= htmlspecialchars($file['original_name']) ?>"
+                                            class="mt-2 w-full inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 rounded hover:bg-teal-100 transition-colors"
+                                        >
+                                            <i class="fas fa-download mr-1"></i>
+                                            Stáhnout
+                                        </a>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 </body>
 </html>

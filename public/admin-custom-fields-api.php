@@ -303,40 +303,58 @@ try {
             // Pass null for groupName to use each field's defined group
             $createResult = $customFields->createFieldsFromFormMapping($entityType, $formFields, $groupName);
             
+            $skippedCount = count($createResult['skipped'] ?? []);
+            
             $logger->info(Logger::TYPE_RAYNET, "Batch created custom fields", [
                 'entity_type' => $entityType,
                 'created_count' => count($createResult['created']),
+                'skipped_count' => $skippedCount,
                 'error_count' => count($createResult['errors']),
-                'errors' => $createResult['errors'] // Log full error details
+                'errors' => $createResult['errors']
             ]);
             
             // AUTO-UPDATE MAPPING: Save the actual Raynet field names to the mapping
+            $mappingUpdated = 0;
+            $currentMapping = getFieldMapping($pdo);
+            
+            // Add newly created fields to mapping
             if (!empty($createResult['created'])) {
-                // Get current mapping
-                $currentMapping = getFieldMapping($pdo);
-                
-                // Update with actual Raynet field names
                 foreach ($createResult['created'] as $createdField) {
                     $formField = $createdField['formField'];
                     $raynetField = $createdField['raynetField'];
                     if ($formField && $raynetField) {
                         $currentMapping[$formField] = $raynetField;
+                        $mappingUpdated++;
                     }
                 }
-                
-                // Save updated mapping
+            }
+            
+            // Also add skipped fields (already existing) to mapping
+            if (!empty($createResult['skipped'])) {
+                foreach ($createResult['skipped'] as $skippedField) {
+                    $formField = $skippedField['formField'];
+                    $raynetField = $skippedField['raynetField'];
+                    if ($formField && $raynetField && !isset($currentMapping[$formField])) {
+                        $currentMapping[$formField] = $raynetField;
+                        $mappingUpdated++;
+                    }
+                }
+            }
+            
+            // Save updated mapping
+            if ($mappingUpdated > 0) {
                 saveFieldMapping($pdo, $currentMapping);
-                
                 $logger->info(Logger::TYPE_RAYNET, "Auto-updated field mapping after batch creation", [
-                    'updated_fields' => count($createResult['created'])
+                    'updated_fields' => $mappingUpdated
                 ]);
             }
             
             $result = [
                 'success' => true,
                 'message' => sprintf(
-                    'Vytvořeno %d polí, %d chyb',
+                    'Vytvořeno %d polí, přeskočeno %d (již existují), %d chyb',
                     count($createResult['created']),
+                    $skippedCount,
                     count($createResult['errors'])
                 ),
                 'data' => $createResult

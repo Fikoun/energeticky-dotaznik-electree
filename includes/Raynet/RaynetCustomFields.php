@@ -620,6 +620,426 @@ class RaynetCustomFields
             'suggestedName' => 'ef_form_url',
             'description' => 'Odkaz na formulář v admin panelu',
         ],
+        
+        // =====================================================================
+        // ADDITIONAL FIELDS - STEP 1 (Identifikace zákazníka)
+        // =====================================================================
+        'customerType' => [
+            'target' => 'custom',
+            'group' => self::GROUP_COMPANY_INFO,
+            'suggestedName' => 'ef_customer_type',
+            'description' => 'Typ zákazníka (průmysl, komerční, služby...)',
+        ],
+        'customerTypeOther' => [
+            'target' => 'custom',
+            'group' => self::GROUP_COMPANY_INFO,
+            'suggestedName' => 'ef_customer_type_other',
+            'description' => 'Jiný typ zákazníka - popis',
+        ],
+        'ean' => [
+            'target' => 'custom',
+            'group' => self::GROUP_COMPANY_INFO,
+            'suggestedName' => 'ef_ean',
+            'description' => 'EAN odběrného místa (elektřina)',
+        ],
+        'eic' => [
+            'target' => 'custom',
+            'group' => self::GROUP_COMPANY_INFO,
+            'suggestedName' => 'ef_eic',
+            'description' => 'EIC kód',
+        ],
+        'eanGas' => [
+            'target' => 'custom',
+            'group' => self::GROUP_COMPANY_INFO,
+            'suggestedName' => 'ef_ean_gas',
+            'description' => 'EAN odběrného místa (plyn)',
+        ],
+        
+        // =====================================================================
+        // ADDITIONAL FIELDS - STEP 2 (Parametry odběrného místa)
+        // =====================================================================
+        'fveVteYear' => [
+            'target' => 'custom',
+            'group' => self::GROUP_ENERGY_SOURCES,
+            'suggestedName' => 'ef_fve_vte_year',
+            'description' => 'Rok instalace FVE/VTE',
+        ],
+        'fveVteType' => [
+            'target' => 'custom',
+            'group' => self::GROUP_ENERGY_SOURCES,
+            'suggestedName' => 'ef_fve_vte_type',
+            'description' => 'Typ FVE/VTE instalace',
+        ],
+        'transformerCount' => [
+            'target' => 'custom',
+            'group' => self::GROUP_TECHNICAL,
+            'suggestedName' => 'ef_transformer_count',
+            'description' => 'Počet transformátorů',
+        ],
+        'transformerOwnership' => [
+            'target' => 'custom',
+            'group' => self::GROUP_TECHNICAL,
+            'suggestedName' => 'ef_transformer_ownership',
+            'description' => 'Vlastnictví transformátoru',
+        ],
+        'transformerCooling' => [
+            'target' => 'custom',
+            'group' => self::GROUP_TECHNICAL,
+            'suggestedName' => 'ef_transformer_cooling',
+            'description' => 'Chlazení transformátoru',
+        ],
+        'circuitBreakerType' => [
+            'target' => 'custom',
+            'group' => self::GROUP_TECHNICAL,
+            'suggestedName' => 'ef_breaker_type',
+            'description' => 'Typ jističe',
+        ],
+        'circuitBreakerValue' => [
+            'target' => 'custom',
+            'group' => self::GROUP_TECHNICAL,
+            'suggestedName' => 'ef_breaker_value',
+            'description' => 'Hodnota jističe (A)',
+        ],
+        'distributionTerritory' => [
+            'target' => 'custom',
+            'group' => self::GROUP_TECHNICAL,
+            'suggestedName' => 'ef_distribution_territory',
+            'description' => 'Distribuční území (ČEZ, PRE, EGD...)',
+        ],
+        'connectionVoltage' => [
+            'target' => 'custom',
+            'group' => self::GROUP_TECHNICAL,
+            'suggestedName' => 'ef_connection_voltage',
+            'description' => 'Napěťová hladina připojení',
+        ],
+        'lvDistributionBoard' => [
+            'target' => 'custom',
+            'group' => self::GROUP_TECHNICAL,
+            'suggestedName' => 'ef_lv_board',
+            'description' => 'Rozvaděč nízkého napětí',
+        ],
+        'coolingType' => [
+            'target' => 'custom',
+            'group' => self::GROUP_TECHNICAL,
+            'suggestedName' => 'ef_cooling_type',
+            'description' => 'Typ chlazení',
+        ],
+        'customCircuitBreaker' => [
+            'target' => 'custom',
+            'group' => self::GROUP_TECHNICAL,
+            'suggestedName' => 'ef_custom_breaker',
+            'description' => 'Vlastní specifikace jističe',
+        ],
+        
+        // =====================================================================
+        // ADDITIONAL FIELDS - STEP 3 (Energetické potřeby)
+        // =====================================================================
+        'hasQuarterHourData' => [
+            'target' => 'custom',
+            'group' => self::GROUP_CONSUMPTION,
+            'suggestedName' => 'ef_has_quarter_hour',
+            'description' => 'Má čtvrthodinová data',
+        ],
+        'consumptionDataSource' => [
+            'target' => 'custom',
+            'group' => self::GROUP_CONSUMPTION,
+            'suggestedName' => 'ef_data_source',
+            'description' => 'Zdroj dat o spotřebě',
+        ],
+        'averageLoad' => [
+            'target' => 'custom',
+            'group' => self::GROUP_CONSUMPTION,
+            'suggestedName' => 'ef_average_load',
+            'description' => 'Průměrné zatížení (kW)',
+        ],
+        'peakLoad' => [
+            'target' => 'custom',
+            'group' => self::GROUP_CONSUMPTION,
+            'suggestedName' => 'ef_peak_load',
+            'description' => 'Špičkové zatížení (kW)',
+        ],
+        'lowLoad' => [
+            'target' => 'custom',
+            'group' => self::GROUP_CONSUMPTION,
+            'suggestedName' => 'ef_low_load',
+            'description' => 'Minimální zatížení (kW)',
+        ],
+        'backupDurationHours' => [
+            'target' => 'custom',
+            'group' => self::GROUP_TECHNICAL,
+            'suggestedName' => 'ef_backup_hours',
+            'description' => 'Doba zálohy v hodinách',
+        ],
+        'hasElectricityProblems' => [
+            'target' => 'custom',
+            'group' => self::GROUP_TECHNICAL,
+            'suggestedName' => 'ef_has_problems',
+            'description' => 'Má problémy s elektřinou',
+        ],
+        'electricityProblemsDetails' => [
+            'target' => 'custom',
+            'group' => self::GROUP_TECHNICAL,
+            'suggestedName' => 'ef_problems_details',
+            'description' => 'Popis problémů s elektřinou',
+        ],
+        'hasEnergyAudit' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_has_audit',
+            'description' => 'Má energetický audit',
+        ],
+        'energyAuditDetails' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_audit_details',
+            'description' => 'Detaily energetického auditu',
+        ],
+        'hasOwnEnergySource' => [
+            'target' => 'custom',
+            'group' => self::GROUP_ENERGY_SOURCES,
+            'suggestedName' => 'ef_has_own_source',
+            'description' => 'Má vlastní zdroj energie',
+        ],
+        'ownEnergySourceDetails' => [
+            'target' => 'custom',
+            'group' => self::GROUP_ENERGY_SOURCES,
+            'suggestedName' => 'ef_own_source_details',
+            'description' => 'Detaily vlastního zdroje',
+        ],
+        
+        // =====================================================================
+        // ADDITIONAL FIELDS - STEP 4 (Cíle a očekávání)
+        // =====================================================================
+        'priority1' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_priority1',
+            'description' => 'Priorita 1',
+        ],
+        'priority2' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_priority2',
+            'description' => 'Priorita 2',
+        ],
+        'priority3' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_priority3',
+            'description' => 'Priorita 3',
+        ],
+        'otherGoal' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_other_goal',
+            'description' => 'Jiný cíl',
+        ],
+        'expectedRoi' => [
+            'target' => 'custom',
+            'group' => self::GROUP_BILLING,
+            'suggestedName' => 'ef_expected_roi',
+            'description' => 'Očekávaná návratnost investice',
+        ],
+        'budgetRange' => [
+            'target' => 'custom',
+            'group' => self::GROUP_BILLING,
+            'suggestedName' => 'ef_budget_range',
+            'description' => 'Rozpočtový rámec',
+        ],
+        'timeline' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_timeline',
+            'description' => 'Časový plán realizace',
+        ],
+        
+        // =====================================================================
+        // ADDITIONAL FIELDS - STEP 5 (Infrastruktura)
+        // =====================================================================
+        'indoorSpaceType' => [
+            'target' => 'custom',
+            'group' => self::GROUP_SITE,
+            'suggestedName' => 'ef_indoor_space_type',
+            'description' => 'Typ vnitřního prostoru',
+        ],
+        'floorLoadCapacity' => [
+            'target' => 'custom',
+            'group' => self::GROUP_SITE,
+            'suggestedName' => 'ef_floor_load',
+            'description' => 'Nosnost podlahy',
+        ],
+        
+        // =====================================================================
+        // ADDITIONAL FIELDS - STEP 6 (Legislativa)
+        // =====================================================================
+        'requestedOutputIncrease' => [
+            'target' => 'custom',
+            'group' => self::GROUP_TECHNICAL,
+            'suggestedName' => 'ef_output_increase',
+            'description' => 'Požadované navýšení výkonu (kW)',
+        ],
+        'connectionApplicationBy' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_connection_by',
+            'description' => 'Kdo podá žádost o připojení',
+        ],
+        'specialistPosition' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_specialist_position',
+            'description' => 'Pozice energetického specialisty',
+        ],
+        'specialistPhone' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_specialist_phone',
+            'description' => 'Telefon specialisty',
+        ],
+        'specialistEmail' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_specialist_email',
+            'description' => 'Email specialisty',
+        ],
+        
+        // =====================================================================
+        // ADDITIONAL FIELDS - STEP 7 (Postup a poznámky)
+        // =====================================================================
+        'urgency' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_urgency',
+            'description' => 'Naléhavost projektu',
+        ],
+        
+        // =====================================================================
+        // ADDITIONAL FIELDS - STEP 8 (Energetický dotazník)
+        // =====================================================================
+        'spotSurcharge' => [
+            'target' => 'custom',
+            'group' => self::GROUP_BILLING,
+            'suggestedName' => 'ef_spot_surcharge',
+            'description' => 'Příplatek ke spotu',
+        ],
+        'fixPrice' => [
+            'target' => 'custom',
+            'group' => self::GROUP_BILLING,
+            'suggestedName' => 'ef_fix_price',
+            'description' => 'Fixní cena elektřiny',
+        ],
+        'energySupplier' => [
+            'target' => 'custom',
+            'group' => self::GROUP_BILLING,
+            'suggestedName' => 'ef_energy_supplier',
+            'description' => 'Dodavatel energie',
+        ],
+        'gradualFixPrice' => [
+            'target' => 'custom',
+            'group' => self::GROUP_BILLING,
+            'suggestedName' => 'ef_gradual_fix_price',
+            'description' => 'Postupná fixace - cena',
+        ],
+        'gradualSpotSurcharge' => [
+            'target' => 'custom',
+            'group' => self::GROUP_BILLING,
+            'suggestedName' => 'ef_gradual_spot',
+            'description' => 'Postupná fixace - spot příplatek',
+        ],
+        'energySharing' => [
+            'target' => 'custom',
+            'group' => self::GROUP_BILLING,
+            'suggestedName' => 'ef_energy_sharing',
+            'description' => 'Sdílení energie',
+        ],
+        'hasSharing' => [
+            'target' => 'custom',
+            'group' => self::GROUP_BILLING,
+            'suggestedName' => 'ef_has_sharing',
+            'description' => 'Má sdílení energie',
+        ],
+        'sharingDetails' => [
+            'target' => 'custom',
+            'group' => self::GROUP_BILLING,
+            'suggestedName' => 'ef_sharing_details',
+            'description' => 'Detaily sdílení energie',
+        ],
+        'gasBill' => [
+            'target' => 'custom',
+            'group' => self::GROUP_CONSUMPTION,
+            'suggestedName' => 'ef_gas_bill',
+            'description' => 'Účet za plyn',
+        ],
+        'hotWaterConsumption' => [
+            'target' => 'custom',
+            'group' => self::GROUP_CONSUMPTION,
+            'suggestedName' => 'ef_hot_water',
+            'description' => 'Spotřeba teplé vody',
+        ],
+        'steamConsumption' => [
+            'target' => 'custom',
+            'group' => self::GROUP_CONSUMPTION,
+            'suggestedName' => 'ef_steam',
+            'description' => 'Spotřeba páry',
+        ],
+        'otherConsumption' => [
+            'target' => 'custom',
+            'group' => self::GROUP_CONSUMPTION,
+            'suggestedName' => 'ef_other_consumption',
+            'description' => 'Jiná spotřeba',
+        ],
+        
+        // =====================================================================
+        // STEP NOTES (poznámky ke krokům)
+        // =====================================================================
+        'stepNotes.1' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_note_step1',
+            'description' => 'Poznámka - Krok 1: Identifikační údaje',
+        ],
+        'stepNotes.2' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_note_step2',
+            'description' => 'Poznámka - Krok 2: Parametry odběrného místa',
+        ],
+        'stepNotes.3' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_note_step3',
+            'description' => 'Poznámka - Krok 3: Energetické potřeby',
+        ],
+        'stepNotes.4' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_note_step4',
+            'description' => 'Poznámka - Krok 4: Cíle a očekávání',
+        ],
+        'stepNotes.5' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_note_step5',
+            'description' => 'Poznámka - Krok 5: Infrastruktura',
+        ],
+        'stepNotes.6' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_note_step6',
+            'description' => 'Poznámka - Krok 6: Provozní rámec',
+        ],
+        'stepNotes.7' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_note_step7',
+            'description' => 'Poznámka - Krok 7: Poznámky',
+        ],
+        'stepNotes.8' => [
+            'target' => 'custom',
+            'group' => self::GROUP_METADATA,
+            'suggestedName' => 'ef_note_step8',
+            'description' => 'Poznámka - Krok 8: Energetický dotazník',
+        ],
     ];
     
     // EnergyForms field definitions for mapping
@@ -716,6 +1136,87 @@ class RaynetCustomFields
         'formSubmittedAt' => ['label' => 'Datum odeslání', 'type' => self::TYPE_DATETIME, 'step' => 0, 'group' => self::GROUP_METADATA],
         'formId' => ['label' => 'ID formuláře', 'type' => self::TYPE_STRING, 'step' => 0, 'group' => self::GROUP_METADATA],
         'formUrl' => ['label' => 'URL formuláře', 'type' => self::TYPE_HYPERLINK, 'step' => 0, 'group' => self::GROUP_METADATA],
+        
+        // =====================================================================
+        // ADDITIONAL FORM FIELDS
+        // =====================================================================
+        
+        // Step 1 additions
+        'customerType' => ['label' => 'Typ zákazníka', 'type' => self::TYPE_STRING, 'step' => 1, 'group' => self::GROUP_COMPANY_INFO],
+        'customerTypeOther' => ['label' => 'Typ zákazníka - jiný', 'type' => self::TYPE_STRING, 'step' => 1, 'group' => self::GROUP_COMPANY_INFO],
+        'ean' => ['label' => 'EAN (elektřina)', 'type' => self::TYPE_STRING, 'step' => 1, 'group' => self::GROUP_COMPANY_INFO],
+        'eic' => ['label' => 'EIC kód', 'type' => self::TYPE_STRING, 'step' => 1, 'group' => self::GROUP_COMPANY_INFO],
+        'eanGas' => ['label' => 'EAN (plyn)', 'type' => self::TYPE_STRING, 'step' => 1, 'group' => self::GROUP_COMPANY_INFO],
+        
+        // Step 2 additions
+        'fveVteYear' => ['label' => 'Rok instalace FVE/VTE', 'type' => self::TYPE_STRING, 'step' => 2, 'group' => self::GROUP_ENERGY_SOURCES],
+        'fveVteType' => ['label' => 'Typ FVE/VTE', 'type' => self::TYPE_STRING, 'step' => 2, 'group' => self::GROUP_ENERGY_SOURCES],
+        'transformerCount' => ['label' => 'Počet transformátorů', 'type' => self::TYPE_DECIMAL, 'step' => 2, 'group' => self::GROUP_TECHNICAL],
+        'transformerOwnership' => ['label' => 'Vlastnictví transformátoru', 'type' => self::TYPE_STRING, 'step' => 2, 'group' => self::GROUP_TECHNICAL],
+        'transformerCooling' => ['label' => 'Chlazení transformátoru', 'type' => self::TYPE_STRING, 'step' => 2, 'group' => self::GROUP_TECHNICAL],
+        'circuitBreakerType' => ['label' => 'Typ jističe', 'type' => self::TYPE_STRING, 'step' => 2, 'group' => self::GROUP_TECHNICAL],
+        'circuitBreakerValue' => ['label' => 'Hodnota jističe (A)', 'type' => self::TYPE_DECIMAL, 'step' => 2, 'group' => self::GROUP_TECHNICAL],
+        'distributionTerritory' => ['label' => 'Distribuční území', 'type' => self::TYPE_STRING, 'step' => 2, 'group' => self::GROUP_TECHNICAL],
+        'connectionVoltage' => ['label' => 'Napěťová hladina', 'type' => self::TYPE_STRING, 'step' => 2, 'group' => self::GROUP_TECHNICAL],
+        'lvDistributionBoard' => ['label' => 'Rozvaděč NN', 'type' => self::TYPE_STRING, 'step' => 2, 'group' => self::GROUP_TECHNICAL],
+        'coolingType' => ['label' => 'Typ chlazení', 'type' => self::TYPE_STRING, 'step' => 2, 'group' => self::GROUP_TECHNICAL],
+        'customCircuitBreaker' => ['label' => 'Vlastní jistič', 'type' => self::TYPE_STRING, 'step' => 2, 'group' => self::GROUP_TECHNICAL],
+        
+        // Step 3 additions
+        'hasQuarterHourData' => ['label' => 'Má čtvrthodinová data', 'type' => self::TYPE_BOOLEAN, 'step' => 3, 'group' => self::GROUP_CONSUMPTION],
+        'consumptionDataSource' => ['label' => 'Zdroj dat o spotřebě', 'type' => self::TYPE_STRING, 'step' => 3, 'group' => self::GROUP_CONSUMPTION],
+        'averageLoad' => ['label' => 'Průměrné zatížení (kW)', 'type' => self::TYPE_DECIMAL, 'step' => 3, 'group' => self::GROUP_CONSUMPTION],
+        'peakLoad' => ['label' => 'Špičkové zatížení (kW)', 'type' => self::TYPE_DECIMAL, 'step' => 3, 'group' => self::GROUP_CONSUMPTION],
+        'lowLoad' => ['label' => 'Minimální zatížení (kW)', 'type' => self::TYPE_DECIMAL, 'step' => 3, 'group' => self::GROUP_CONSUMPTION],
+        'backupDurationHours' => ['label' => 'Doba zálohy (hodiny)', 'type' => self::TYPE_DECIMAL, 'step' => 3, 'group' => self::GROUP_TECHNICAL],
+        'hasElectricityProblems' => ['label' => 'Má problémy s elektřinou', 'type' => self::TYPE_BOOLEAN, 'step' => 3, 'group' => self::GROUP_TECHNICAL],
+        'electricityProblemsDetails' => ['label' => 'Popis problémů', 'type' => self::TYPE_TEXT, 'step' => 3, 'group' => self::GROUP_TECHNICAL],
+        'hasEnergyAudit' => ['label' => 'Má energetický audit', 'type' => self::TYPE_BOOLEAN, 'step' => 3, 'group' => self::GROUP_METADATA],
+        'energyAuditDetails' => ['label' => 'Detaily auditu', 'type' => self::TYPE_TEXT, 'step' => 3, 'group' => self::GROUP_METADATA],
+        'hasOwnEnergySource' => ['label' => 'Má vlastní zdroj', 'type' => self::TYPE_BOOLEAN, 'step' => 3, 'group' => self::GROUP_ENERGY_SOURCES],
+        'ownEnergySourceDetails' => ['label' => 'Detaily vlastního zdroje', 'type' => self::TYPE_TEXT, 'step' => 3, 'group' => self::GROUP_ENERGY_SOURCES],
+        
+        // Step 4 additions
+        'priority1' => ['label' => 'Priorita 1', 'type' => self::TYPE_STRING, 'step' => 4, 'group' => self::GROUP_METADATA],
+        'priority2' => ['label' => 'Priorita 2', 'type' => self::TYPE_STRING, 'step' => 4, 'group' => self::GROUP_METADATA],
+        'priority3' => ['label' => 'Priorita 3', 'type' => self::TYPE_STRING, 'step' => 4, 'group' => self::GROUP_METADATA],
+        'otherGoal' => ['label' => 'Jiný cíl', 'type' => self::TYPE_STRING, 'step' => 4, 'group' => self::GROUP_METADATA],
+        'expectedRoi' => ['label' => 'Očekávaná návratnost', 'type' => self::TYPE_STRING, 'step' => 4, 'group' => self::GROUP_BILLING],
+        'budgetRange' => ['label' => 'Rozpočtový rámec', 'type' => self::TYPE_STRING, 'step' => 4, 'group' => self::GROUP_BILLING],
+        'timeline' => ['label' => 'Časový plán', 'type' => self::TYPE_STRING, 'step' => 4, 'group' => self::GROUP_METADATA],
+        
+        // Step 5 additions
+        'indoorSpaceType' => ['label' => 'Typ vnitřního prostoru', 'type' => self::TYPE_STRING, 'step' => 5, 'group' => self::GROUP_SITE],
+        'floorLoadCapacity' => ['label' => 'Nosnost podlahy', 'type' => self::TYPE_STRING, 'step' => 5, 'group' => self::GROUP_SITE],
+        
+        // Step 6 additions
+        'requestedOutputIncrease' => ['label' => 'Navýšení výkonu (kW)', 'type' => self::TYPE_DECIMAL, 'step' => 6, 'group' => self::GROUP_TECHNICAL],
+        'specialistPhone' => ['label' => 'Telefon specialisty', 'type' => self::TYPE_STRING, 'step' => 6, 'group' => self::GROUP_METADATA],
+        'specialistEmail' => ['label' => 'Email specialisty', 'type' => self::TYPE_STRING, 'step' => 6, 'group' => self::GROUP_METADATA],
+        
+        // Step 8 additions
+        'spotSurcharge' => ['label' => 'Příplatek ke spotu', 'type' => self::TYPE_DECIMAL, 'step' => 8, 'group' => self::GROUP_BILLING],
+        'fixPrice' => ['label' => 'Fixní cena', 'type' => self::TYPE_DECIMAL, 'step' => 8, 'group' => self::GROUP_BILLING],
+        'energySupplier' => ['label' => 'Dodavatel energie', 'type' => self::TYPE_STRING, 'step' => 8, 'group' => self::GROUP_BILLING],
+        'gradualFixPrice' => ['label' => 'Postupná fixace - cena', 'type' => self::TYPE_DECIMAL, 'step' => 8, 'group' => self::GROUP_BILLING],
+        'gradualSpotSurcharge' => ['label' => 'Postupná fixace - spot', 'type' => self::TYPE_DECIMAL, 'step' => 8, 'group' => self::GROUP_BILLING],
+        'energySharing' => ['label' => 'Sdílení energie', 'type' => self::TYPE_STRING, 'step' => 8, 'group' => self::GROUP_BILLING],
+        'hasSharing' => ['label' => 'Má sdílení', 'type' => self::TYPE_BOOLEAN, 'step' => 8, 'group' => self::GROUP_BILLING],
+        'sharingDetails' => ['label' => 'Detaily sdílení', 'type' => self::TYPE_TEXT, 'step' => 8, 'group' => self::GROUP_BILLING],
+        'gasBill' => ['label' => 'Účet za plyn', 'type' => self::TYPE_DECIMAL, 'step' => 8, 'group' => self::GROUP_CONSUMPTION],
+        'hotWaterConsumption' => ['label' => 'Spotřeba teplé vody', 'type' => self::TYPE_DECIMAL, 'step' => 8, 'group' => self::GROUP_CONSUMPTION],
+        'steamConsumption' => ['label' => 'Spotřeba páry', 'type' => self::TYPE_DECIMAL, 'step' => 8, 'group' => self::GROUP_CONSUMPTION],
+        'otherConsumption' => ['label' => 'Jiná spotřeba', 'type' => self::TYPE_TEXT, 'step' => 8, 'group' => self::GROUP_CONSUMPTION],
+        
+        // Step Notes (poznámky ke krokům)
+        'stepNotes.1' => ['label' => 'Poznámka - Identifikační údaje', 'type' => self::TYPE_TEXT, 'step' => 1, 'group' => self::GROUP_METADATA],
+        'stepNotes.2' => ['label' => 'Poznámka - Parametry odběrného místa', 'type' => self::TYPE_TEXT, 'step' => 2, 'group' => self::GROUP_METADATA],
+        'stepNotes.3' => ['label' => 'Poznámka - Energetické potřeby', 'type' => self::TYPE_TEXT, 'step' => 3, 'group' => self::GROUP_METADATA],
+        'stepNotes.4' => ['label' => 'Poznámka - Cíle a očekávání', 'type' => self::TYPE_TEXT, 'step' => 4, 'group' => self::GROUP_METADATA],
+        'stepNotes.5' => ['label' => 'Poznámka - Infrastruktura', 'type' => self::TYPE_TEXT, 'step' => 5, 'group' => self::GROUP_METADATA],
+        'stepNotes.6' => ['label' => 'Poznámka - Provozní rámec', 'type' => self::TYPE_TEXT, 'step' => 6, 'group' => self::GROUP_METADATA],
+        'stepNotes.7' => ['label' => 'Poznámka - Poznámky', 'type' => self::TYPE_TEXT, 'step' => 7, 'group' => self::GROUP_METADATA],
+        'stepNotes.8' => ['label' => 'Poznámka - Energetický dotazník', 'type' => self::TYPE_TEXT, 'step' => 8, 'group' => self::GROUP_METADATA],
     ];
     
     /**
@@ -1008,6 +1509,9 @@ class RaynetCustomFields
     /**
      * Create multiple custom fields for EnergyForms mapping
      * 
+     * Checks for existing fields in Raynet before creating to avoid duplicates.
+     * If a field with the same label already exists, it will be skipped.
+     * 
      * @param string $entityType Entity type
      * @param array $formFields List of EnergyForms field names to create
      * @param string|null $groupName Optional override group name (uses field's default group if null)
@@ -1020,8 +1524,22 @@ class RaynetCustomFields
     ): array {
         $results = [
             'created' => [],
+            'skipped' => [],
             'errors' => []
         ];
+        
+        // Get existing fields from Raynet to check for duplicates
+        $existingFields = $this->getFieldsForEntity($entityType);
+        $existingLabels = [];
+        $existingFieldMap = [];
+        
+        foreach ($existingFields as $field) {
+            $label = strtolower(trim($field['label'] ?? ''));
+            $existingLabels[$label] = $field['name'] ?? null;
+            $existingFieldMap[$label] = $field;
+        }
+        
+        error_log("createFieldsFromFormMapping: Found " . count($existingLabels) . " existing fields in Raynet");
         
         foreach ($formFields as $formField) {
             if (!isset(self::FORM_FIELDS[$formField])) {
@@ -1033,6 +1551,22 @@ class RaynetCustomFields
             }
             
             $fieldDef = self::FORM_FIELDS[$formField];
+            $fieldLabel = $fieldDef['label'];
+            $labelKey = strtolower(trim($fieldLabel));
+            
+            // Check if field already exists by label
+            if (isset($existingLabels[$labelKey])) {
+                $existingRaynetField = $existingLabels[$labelKey];
+                error_log("createFieldsFromFormMapping: Skipping '{$formField}' - field with label '{$fieldLabel}' already exists as '{$existingRaynetField}'");
+                
+                $results['skipped'][] = [
+                    'formField' => $formField,
+                    'raynetField' => $existingRaynetField,
+                    'label' => $fieldLabel,
+                    'reason' => 'Pole již existuje v Raynet'
+                ];
+                continue;
+            }
             
             // Use provided group name or field's default group
             $fieldGroup = $groupName ?? $fieldDef['group'] ?? self::GROUP_METADATA;
@@ -1089,15 +1623,18 @@ class RaynetCustomFields
     {
         $customFields = [];
         
+        // Flatten nested objects (e.g., stepNotes[1] => stepNotes.1)
+        $flattenedData = $this->flattenFormData($formData);
+        
         error_log("buildCustomFieldsPayload: Processing " . count($mapping) . " field mappings");
-        error_log("buildCustomFieldsPayload: Form data keys: " . implode(', ', array_keys($formData)));
+        error_log("buildCustomFieldsPayload: Form data keys: " . implode(', ', array_keys($flattenedData)));
         
         foreach ($mapping as $formField => $raynetField) {
-            if (!isset($formData[$formField])) {
+            if (!isset($flattenedData[$formField])) {
                 continue;
             }
             
-            $value = $formData[$formField];
+            $value = $flattenedData[$formField];
             
             // Skip empty values
             if ($value === '' || $value === null) {
@@ -1119,6 +1656,42 @@ class RaynetCustomFields
         error_log("buildCustomFieldsPayload: Built " . count($customFields) . " custom fields");
         
         return $customFields;
+    }
+    
+    /**
+     * Flatten nested arrays in form data using dot notation
+     * e.g., ['stepNotes' => ['1' => 'note']] becomes ['stepNotes.1' => 'note']
+     */
+    private function flattenFormData(array $data, string $prefix = ''): array
+    {
+        $result = [];
+        
+        foreach ($data as $key => $value) {
+            $newKey = $prefix === '' ? $key : $prefix . '.' . $key;
+            
+            if (is_array($value) && !$this->isIndexedArray($value)) {
+                // Recurse for associative arrays (like stepNotes)
+                $result = array_merge($result, $this->flattenFormData($value, $newKey));
+                // Also keep the original key for backward compatibility
+                $result[$key] = $value;
+            } else {
+                $result[$newKey] = $value;
+            }
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Check if an array is numerically indexed (vs associative)
+     */
+    private function isIndexedArray(array $arr): bool
+    {
+        if (empty($arr)) {
+            return true;
+        }
+        // Check if all keys are integers starting from 0
+        return array_keys($arr) === range(0, count($arr) - 1);
     }
     
     /**

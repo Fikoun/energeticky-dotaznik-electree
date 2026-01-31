@@ -195,25 +195,63 @@ class RaynetConnector
             
             error_log("Raynet sync: Company synced with ID {$result['company_id']}");
             
-            // NOTE: Person sync is disabled - business doesn't use Person entity
-            // To re-enable, uncomment the code below:
-            /*
-            // 2. Sync contact person if we have contact data
-            $hasContactPerson = !empty($formData['contactPerson']) 
-                || !empty($formData['contact_person']);
+            // 2. Sync primary contact person if we have contact data
+            $hasContactPerson = !empty($parsedFormData['contactPerson']) 
+                || !empty($parsedFormData['contact_person']);
             
             if ($hasContactPerson) {
-                $person = $this->person();
-                $person->smartSync($formData, $formId, $result['company_id']);
-                $result['person_id'] = $person->getId();
-                
-                error_log("Raynet sync: Person synced with ID {$result['person_id']}");
+                try {
+                    $person = $this->person();
+                    $person->smartSync($parsedFormData, $formId, $result['company_id']);
+                    $result['person_id'] = $person->getId();
+                    error_log("Raynet sync: Primary person synced with ID {$result['person_id']}");
+                } catch (\Exception $e) {
+                    error_log("Raynet sync: Failed to sync primary person: " . $e->getMessage());
+                    // Continue - person sync failure shouldn't break the whole sync
+                }
             }
-            */
             
-            // 3. Update sync status in database
+            // 3. Sync additional contacts
+            $additionalContacts = $parsedFormData['additionalContacts'] ?? [];
+            if (!empty($additionalContacts) && is_array($additionalContacts)) {
+                $result['additional_contacts'] = [];
+                
+                foreach ($additionalContacts as $index => $contactData) {
+                    // Skip empty contacts
+                    if (empty($contactData['name']) && empty($contactData['email'])) {
+                        continue;
+                    }
+                    
+                    try {
+                        $additionalPerson = $this->person();
+                        $additionalPerson->syncAdditionalContact(
+                            $contactData,
+                            $formId,
+                            $index,
+                            $result['company_id']
+                        );
+                        
+                        $result['additional_contacts'][] = [
+                            'index' => $index,
+                            'person_id' => $additionalPerson->getId(),
+                            'name' => $contactData['name'] ?? '',
+                            'isPrimary' => $contactData['isPrimary'] ?? false
+                        ];
+                        
+                        error_log("Raynet sync: Additional contact {$index} synced with ID {$additionalPerson->getId()}");
+                    } catch (\Exception $e) {
+                        error_log("Raynet sync: Failed to sync additional contact {$index}: " . $e->getMessage());
+                        // Continue with other contacts
+                    }
+                }
+                
+                error_log("Raynet sync: Synced " . count($result['additional_contacts']) . " additional contacts");
+            }
+            
+            // 4. Update sync status in database
             $result['synced_at'] = date('Y-m-d H:i:s');
             $result['success'] = true;
+            $result['additional_contacts_count'] = count($result['additional_contacts'] ?? []);
             
             if ($this->pdo) {
                 $this->updateSyncStatus($formId, $result);
