@@ -168,6 +168,8 @@ function App() {
   const handleLogin = (userData) => {
     console.log('User logged in:', userData)
     setUser(userData)
+    // Save user to localStorage for persistence across page reloads
+    localStorage.setItem('batteryFormUser', JSON.stringify(userData))
     setCurrentView('form')
   }
 
@@ -300,9 +302,22 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // Initialize offline support
+  // Initialize offline support and load saved user
   useEffect(() => {
     initializeOfflineSupport();
+    
+    // Load saved user data from localStorage
+    try {
+      const savedUser = localStorage.getItem('batteryFormUser');
+      if (savedUser) {
+        const userData = JSON.parse(savedUser);
+        console.log('Restored user from localStorage:', userData);
+        setUser(userData);
+      }
+    } catch (error) {
+      console.error('Error loading saved user:', error);
+      localStorage.removeItem('batteryFormUser');
+    }
     
     // Load saved form data
     const savedData = loadFormData();
@@ -358,6 +373,7 @@ function App() {
     
     // Vyčištění stavu aplikace
     setUser(null)
+    localStorage.removeItem('batteryFormUser')
     setCurrentStep(1)
     setSubmissionComplete(false)
     setCurrentView('form')
