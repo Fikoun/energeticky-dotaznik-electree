@@ -3,7 +3,23 @@
 ob_start();
 
 // Load database configuration FIRST
-require_once __DIR__ . '/../config/database.php';
+$dbConfigPath = __DIR__ . '/../config/database.php';
+if (!file_exists($dbConfigPath)) {
+    // Try alternative path for production server
+    $dbConfigPath = dirname(__DIR__) . '/config/database.php';
+}
+if (!file_exists($dbConfigPath)) {
+    // Last resort - check if config is in same directory level
+    $dbConfigPath = __DIR__ . '/config/database.php';
+}
+if (!file_exists($dbConfigPath)) {
+    error_log("Submit form fatal error: database.php not found. Tried paths: " . __DIR__ . '/../config/database.php, ' . dirname(__DIR__) . '/config/database.php');
+    ob_end_clean();
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => 'Database configuration not found']);
+    exit;
+}
+require_once $dbConfigPath;
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
