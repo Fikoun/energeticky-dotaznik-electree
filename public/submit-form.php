@@ -45,11 +45,8 @@ try {
         throw new Exception('Neplatná JSON data');
     }
 
-    // Database configuration
-    $host = 's2.onhost.cz';
-    $dbname = 'OH_13_edele';
-    $username = 'OH_13_edele';
-    $password = 'stjTmLjaYBBKa9u9_U';
+    // Database configuration - use centralized config
+    require_once __DIR__ . '/../config/database.php';
 
     $useDatabase = false;
     $pdo = null;
