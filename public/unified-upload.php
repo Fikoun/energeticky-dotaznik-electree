@@ -67,14 +67,27 @@ try {
     $formDir = $uploadDir . $formId . '/';
     $thumbDir = $formDir . 'thumbnails/';
     
+    // Check and create directories with error handling
     if (!is_dir($uploadDir)) {
-        mkdir($uploadDir, 0755, true);
+        if (!@mkdir($uploadDir, 0755, true)) {
+            throw new Exception('Nelze vytvořit složku pro nahrávání. Kontaktujte administrátora pro nastavení oprávnění složky: ' . $uploadDir);
+        }
     }
+    
+    if (!is_writable($uploadDir)) {
+        throw new Exception('Složka pro nahrávání není zapisovatelná. Kontaktujte administrátora pro nastavení oprávnění složky: ' . $uploadDir);
+    }
+    
     if (!is_dir($formDir)) {
-        mkdir($formDir, 0755, true);
+        if (!@mkdir($formDir, 0755, true)) {
+            throw new Exception('Nelze vytvořit složku pro formulář: ' . $formDir);
+        }
     }
     if (!is_dir($thumbDir)) {
-        mkdir($thumbDir, 0755, true);
+        if (!@mkdir($thumbDir, 0755, true)) {
+            // Thumbnail directory is optional, just log the error
+            error_log("Could not create thumbnail directory: " . $thumbDir);
+        }
     }
     
     $uploadedFiles = [];
