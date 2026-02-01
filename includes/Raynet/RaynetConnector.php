@@ -486,6 +486,7 @@ class RaynetConnector
     private function loadFormFiles($formId): array
     {
         $files = [];
+        $baseUrl = 'https://ed.electree.cz/public/serve-file.php?id=';
         
         try {
             // Check if form_files table exists
@@ -495,7 +496,7 @@ class RaynetConnector
             }
             
             $stmt = $this->pdo->prepare("
-                SELECT field_name, original_name, file_path, file_size, mime_type
+                SELECT id, field_name, original_name, file_size, mime_type
                 FROM form_files 
                 WHERE form_id = ? AND deleted_at IS NULL
                 ORDER BY field_name, uploaded_at
@@ -517,7 +518,7 @@ class RaynetConnector
                 
                 $files[$fieldName][] = [
                     'name' => $row['original_name'],
-                    'url' => $row['file_path'],
+                    'url' => $baseUrl . $row['id'],
                     'size' => $row['file_size'],
                     'type' => $row['mime_type'],
                 ];
