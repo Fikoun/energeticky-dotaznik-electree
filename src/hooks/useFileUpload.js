@@ -1,4 +1,20 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+
+// Generate a stable session ID for temp file uploads
+const getSessionTempId = () => {
+  const key = 'batteryForm_tempFormId'
+  let tempId = sessionStorage.getItem(key)
+  if (!tempId) {
+    tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    sessionStorage.setItem(key, tempId)
+  }
+  return tempId
+}
+
+// Clear session temp ID (call this when form is submitted or reset)
+export const clearSessionTempId = () => {
+  sessionStorage.removeItem('batteryForm_tempFormId')
+}
 
 export const useFileUpload = (formId, fieldName) => {
   const [uploadedFiles, setUploadedFiles] = useState([])
@@ -6,22 +22,38 @@ export const useFileUpload = (formId, fieldName) => {
   const [isLoading, setIsLoading] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
-
-  // Sync with backend on mount - fetch existing files
-  useEffect(() => {
+  
+  // Track the actual formId used for uploads (may be temp if formId is null)
+  const effectiveFormIdRef = useRef(null)
+  
+  // Compute the effective formId - use real formId if available, otherwise session temp ID
+  const effectiveFormId = useMemo(() => {
     if (formId && formId !== '' && !formId.startsWith('temp_')) {
+      return formId
+    }
+    // Use stable session-based temp ID
+    return getSessionTempId()
+  }, [formId])
+  
+  // Store the effective formId for reference
+  effectiveFormIdRef.current = effectiveFormId
+
+  // Sync with backend on mount and when formId changes - fetch existing files
+  useEffect(() => {
+    // Fetch files for any valid formId (including temp)
+    if (effectiveFormId) {
       fetchExistingFiles()
     }
-  }, [formId, fieldName])
+  }, [effectiveFormId, fieldName])
 
   // Fetch existing files from backend
   const fetchExistingFiles = useCallback(async () => {
-    if (!formId || formId.startsWith('temp_')) return
+    if (!effectiveFormId) return
 
     setIsLoading(true)
     try {
       const params = new URLSearchParams({
-        formId,
+        formId: effectiveFormId,
         fieldName
       })
       
@@ -42,7 +74,7 @@ export const useFileUpload = (formId, fieldName) => {
     } finally {
       setIsLoading(false)
     }
-  }, [formId, fieldName])
+  }, [effectiveFormId, fieldName])
 
   const uploadFiles = useCallback(async (files) => {
     if (!files || files.length === 0) return
@@ -52,7 +84,8 @@ export const useFileUpload = (formId, fieldName) => {
 
     try {
       const formData = new FormData()
-      formData.append('formId', formId || `temp_${Date.now()}`)
+      // Always use effectiveFormId - this is either the real formId or the session temp ID
+      formData.append('formId', effectiveFormId)
       formData.append('fieldName', fieldName)
 
       // Add all files to FormData
@@ -93,7 +126,7 @@ export const useFileUpload = (formId, fieldName) => {
     } finally {
       setIsUploading(false)
     }
-  }, [formId, fieldName])
+  }, [effectiveFormId, fieldName])
 
   // Delete file from both frontend and backend
   const removeFile = useCallback(async (fileId) => {
@@ -108,7 +141,7 @@ export const useFileUpload = (formId, fieldName) => {
         },
         body: JSON.stringify({
           fileId,
-          formId
+          formId: effectiveFormId
         })
       })
 
@@ -132,7 +165,7 @@ export const useFileUpload = (formId, fieldName) => {
     } finally {
       setIsDeleting(false)
     }
-  }, [formId])
+  }, [effectiveFormId])
 
   const clearFiles = useCallback(() => {
     setUploadedFiles([])
@@ -152,6 +185,11 @@ export const useFileUpload = (formId, fieldName) => {
   const refreshFiles = useCallback(() => {
     fetchExistingFiles()
   }, [fetchExistingFiles])
+  
+  // Get the temp form ID that's being used (for migration purposes)
+  const getTempFormId = useCallback(() => {
+    return getSessionTempId()
+  }, [])
 
   return {
     uploadedFiles,
@@ -165,7 +203,9 @@ export const useFileUpload = (formId, fieldName) => {
     getFileNames,
     getTotalSize,
     refreshFiles,
-    hasFiles: uploadedFiles.length > 0
+    hasFiles: uploadedFiles.length > 0,
+    effectiveFormId,
+    getTempFormId
   }
 }
 

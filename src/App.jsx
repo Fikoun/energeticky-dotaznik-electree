@@ -15,6 +15,7 @@ import OfflineNotification from './components/OfflineNotification'
 import TopBar from './components/TopBar'
 import Login from './components/Login'
 import useAutoSave from './hooks/useAutoSave'
+import { clearSessionTempId } from './hooks/useFileUpload'
 import { Battery, Zap } from 'lucide-react'
 import { saveFormData, loadFormData, isOffline, addToSubmissionQueue, initializeOfflineSupport } from './utils/formStorage'
 import { uploadFiles } from './utils/fileUpload'
@@ -176,14 +177,16 @@ function App() {
   const handleEditForm = (form) => {
     console.log('Editing form:', form)
     if (form) {
-      // Edit existing form
+      // Edit existing form - clear temp ID since we have a real form ID
+      clearSessionTempId()
       const formData = JSON.parse(form.form_data || '{}')
       methods.reset(formData)
       setFormId(form.id)
       setEditingForm(form)
       console.log('Form data loaded for editing:', Object.keys(formData))
     } else {
-      // New form
+      // New form - clear temp ID to get a fresh one
+      clearSessionTempId()
       methods.reset()
       setFormId(null)
       setEditingForm(null)
@@ -297,6 +300,8 @@ function App() {
     setCurrentStep(1)
     setSubmissionComplete(false)
     setCurrentView('form')
+    // Clear the session temp ID so new uploads get a fresh temp ID
+    clearSessionTempId()
     console.log('Creating new form - all fields cleared')
     // Scroll to top when creating new form
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -379,6 +384,8 @@ function App() {
     setCurrentView('form')
     setEditingForm(null)
     setFormId(null)
+    // Clear session temp ID on logout
+    clearSessionTempId()
     methods.reset()
   }
 
@@ -564,6 +571,8 @@ function App() {
           
           // Clear saved form data
           localStorage.removeItem('batteryFormData');
+          // Clear session temp ID since form is submitted
+          clearSessionTempId();
           setSubmissionComplete(true);
           setEditingForm(null);
           setFormId(null);

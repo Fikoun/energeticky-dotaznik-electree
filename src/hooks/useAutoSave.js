@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 
+// Get the session temp form ID (for file upload migration)
+const getSessionTempFormId = () => {
+  return sessionStorage.getItem('batteryForm_tempFormId') || null
+}
+
 const useAutoSave = (formMethods, user, currentStep, delay = 3000) => {
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState(null)
@@ -50,6 +55,9 @@ const useAutoSave = (formMethods, user, currentStep, delay = 3000) => {
     setSaveError(null)
     
     try {
+      // Get temp form ID for file migration (if files were uploaded before first save)
+      const tempFormId = getSessionTempFormId()
+      
       const submissionData = {
         ...data,
         user: {
@@ -59,12 +67,14 @@ const useAutoSave = (formMethods, user, currentStep, delay = 3000) => {
         },
         isDraft: true,
         formId: formId,
+        tempFormId: tempFormId, // Pass temp ID for file migration
         currentStep: currentStep,
         lastModified: new Date().toISOString()
       }
 
       console.log('AutoSave: Sending data to server', { 
-        hasFormId: !!formId, 
+        hasFormId: !!formId,
+        tempFormId: tempFormId,
         userId: user.id, 
         currentStep,
         dataKeys: Object.keys(data).length 
