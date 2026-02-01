@@ -2,6 +2,62 @@
 // Form submission API - handles both draft saves and final submissions
 ob_start();
 
+// Load database configuration FIRST - with explicit error handling
+$dbConfigPath = __DIR__ . '/../config/database.php';
+error_log("Submit form: Checking path: " . $dbConfigPath . " exists: " . (file_exists($dbConfigPath) ? 'YES' : 'NO'));
+
+if (!file_exists($dbConfigPath)) {
+    $dbConfigPath = dirname(__DIR__) . '/config/database.php';
+    error_log("Submit form: Checking path: " . $dbConfigPath . " exists: " . (file_exists($dbConfigPath) ? 'YES' : 'NO'));
+}
+
+if (file_exists($dbConfigPath)) {
+    require_once $dbConfigPath;
+    error_log("Submit form: Loaded database config, getDbConnection exists: " . (function_exists('getDbConnection') ? 'YES' : 'NO'));
+}
+
+// Fallback: define functions inline if not loaded
+if (!function_exists('getDbConnection')) {
+    error_log("Submit form: getDbConnection not found, using inline fallback");
+    
+    function getDbConnection() {
+        static $pdo = null;
+        if ($pdo !== null) return $pdo;
+        
+        // Try to load from .env
+        $envPath = __DIR__ . '/../.env';
+        if (!file_exists($envPath)) $envPath = dirname(__DIR__) . '/.env';
+        
+        $host = 's2.onhost.cz';
+        $dbname = 'OH_13_edele';
+        $username = 'OH_13_edele';
+        $password = 'stjTmLjaYBBKa9u9_U';
+        
+        if (file_exists($envPath)) {
+            $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            foreach ($lines as $line) {
+                if (strpos(trim($line), '#') === 0) continue;
+                if (strpos($line, '=') !== false) {
+                    list($key, $value) = explode('=', $line, 2);
+                    $key = trim($key);
+                    $value = trim(trim($value), '"\'');
+                    if ($key === 'DB_HOST') $host = $value;
+                    if ($key === 'DB_NAME') $dbname = $value;
+                    if ($key === 'DB_USERNAME') $username = $value;
+                    if ($key === 'DB_PASSWORD') $password = $value;
+                }
+            }
+        }
+        
+        $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+        return $pdo;
+    }
+}
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
@@ -45,21 +101,14 @@ try {
         throw new Exception('Neplatná JSON data');
     }
 
-    // Database configuration
-    $host = 's2.onhost.cz';
-    $dbname = 'OH_13_edele';
-    $username = 'OH_13_edele';
-    $password = 'stjTmLjaYBBKa9u9_U';
-
     $useDatabase = false;
     $pdo = null;
     
     try {
-        $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo = getDbConnection();
         $useDatabase = true;
         error_log("Submit form - Database connected successfully");
-    } catch (PDOException $e) {
+    } catch (Exception $e) {
         error_log("Database connection failed: " . $e->getMessage());
         $useDatabase = false;
     }
@@ -328,12 +377,13 @@ try {
     // Zachytit i fatal errors
     ob_end_clean();
     
-    error_log("Submit form fatal error: " . $e->getMessage());
+    error_log("Submit form fatal error: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
+    error_log("Stack trace: " . $e->getTraceAsString());
     
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Vnitřní chyba serveru'
+        'error' => 'Vnitřní chyba serveru: ' . $e->getMessage()
     ]);
 }
 ?>
