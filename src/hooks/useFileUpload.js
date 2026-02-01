@@ -38,15 +38,61 @@ export const useFileUpload = (formId, fieldName) => {
   // Store the effective formId for reference
   effectiveFormIdRef.current = effectiveFormId
 
+  // Track previous formId to detect changes from temp to permanent
+  const prevFormIdRef = useRef(null)
+
   // Sync with backend on mount and when formId changes - fetch existing files
   useEffect(() => {
+    const prevFormId = prevFormIdRef.current
+    prevFormIdRef.current = effectiveFormId
+    
     // Fetch files for any valid formId (including temp)
     if (effectiveFormId) {
-      fetchExistingFiles()
+      // Check if formId changed from temp to permanent
+      const changedFromTempToPermanent = prevFormId && 
+        prevFormId.startsWith('temp_') && 
+        !effectiveFormId.startsWith('temp_')
+      
+      if (changedFromTempToPermanent) {
+        console.log('FormId changed from temp to permanent, refetching files:', {
+          from: prevFormId,
+          to: effectiveFormId
+        })
+      }
+      
+      // Always fetch files when formId changes
+      const fetchFiles = async () => {
+        setIsLoading(true)
+        try {
+          const params = new URLSearchParams({
+            formId: effectiveFormId,
+            fieldName
+          })
+          
+          const response = await fetch(`/public/get-files.php?${params}`)
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+          }
+
+          const result = await response.json()
+          
+          if (result.success && result.files) {
+            setUploadedFiles(result.files)
+          }
+        } catch (error) {
+          console.error('Error fetching existing files:', error)
+          // Don't set error - this is a background sync
+        } finally {
+          setIsLoading(false)
+        }
+      }
+      
+      fetchFiles()
     }
   }, [effectiveFormId, fieldName])
 
-  // Fetch existing files from backend
+  // Fetch existing files from backend (used for manual refresh)
   const fetchExistingFiles = useCallback(async () => {
     if (!effectiveFormId) return
 

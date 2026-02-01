@@ -61,17 +61,25 @@ try {
     
     // Format files for frontend
     $formattedFiles = array_map(function($file) {
+        $fileId = $file['id'];
+        
+        // Use serve-file.php to serve files (works with private uploads)
+        $fileUrl = '/public/serve-file.php?id=' . urlencode($fileId);
+        $thumbnailUrl = $file['thumbnailPath'] 
+            ? '/public/serve-file.php?id=' . urlencode($fileId) . '&thumb=1' 
+            : null;
+        
         return [
-            'id' => $file['id'],
+            'id' => $fileId,
             'fieldName' => $file['fieldName'],
             'originalName' => $file['originalName'],
             'fileName' => $file['fileName'],
             'path' => $file['path'],
-            'url' => '/public/' . $file['path'],
+            'url' => $fileUrl,
             'size' => (int)$file['size'],
             'formattedSize' => formatFileSize($file['size']),
             'mimeType' => $file['mimeType'],
-            'thumbnailUrl' => $file['thumbnailPath'] ? '/public/' . $file['thumbnailPath'] : null,
+            'thumbnailUrl' => $thumbnailUrl,
             'uploadedAt' => $file['uploadedAt']
         ];
     }, $files);

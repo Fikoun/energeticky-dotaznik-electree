@@ -35,20 +35,47 @@ try {
     // Determine which file to serve
     $filePath = $thumbnail && $file['thumbnail_path'] ? $file['thumbnail_path'] : $file['file_path'];
     
+    // If path is relative, make it absolute
+    if (strpos($filePath, '/') !== 0) {
+        // Relative path - prepend web root
+        $filePath = dirname(__DIR__) . '/' . $filePath;
+    }
+    
+    // Also try the private uploads directory if file not found
+    if (!file_exists($filePath)) {
+        // Try private directory
+        $privateDir = dirname(dirname(__DIR__)) . '/private/';
+        $baseName = basename($filePath);
+        $formDir = basename(dirname($filePath));
+        $altPath = $privateDir . 'uploads/' . $formDir . '/' . $baseName;
+        
+        // Check for thumbnail in thumbnails subdirectory
+        if ($thumbnail) {
+            $altPath = $privateDir . 'uploads/' . $formDir . '/thumbnails/' . $baseName;
+        }
+        
+        if (file_exists($altPath)) {
+            $filePath = $altPath;
+        }
+    }
+    
     // Check if file exists
     if (!file_exists($filePath)) {
+        error_log("serve-file.php: File not found at path: " . $filePath);
         http_response_code(404);
         die('File does not exist on disk');
     }
     
     // Check if file is readable
     if (!is_readable($filePath)) {
+        error_log("serve-file.php: File not readable: " . $filePath);
         http_response_code(403);
         die('File is not readable');
     }
     
     // Set headers
-    header('Content-Type: ' . $file['mime_type']);
+    $mimeType = $file['mime_type'] ?: 'application/octet-stream';
+    header('Content-Type: ' . $mimeType);
     header('Content-Length: ' . filesize($filePath));
     header('Content-Disposition: inline; filename="' . basename($file['original_name']) . '"');
     header('Cache-Control: public, max-age=31536000');

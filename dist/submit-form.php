@@ -241,6 +241,56 @@ try {
             }
             
             error_log("Submit form - Created form successfully: $formId");
+            
+            // Migrate files from temp formId to permanent formId (if any)
+            $tempFormId = $data['tempFormId'] ?? null;
+            if ($tempFormId && strpos($tempFormId, 'temp_') === 0) {
+                error_log("Submit form - Migrating files from temp ID: $tempFormId to: $formId");
+                
+                try {
+                    // Update form_files table to use the new permanent formId
+                    $migrateStmt = $pdo->prepare("
+                        UPDATE form_files 
+                        SET form_id = ? 
+                        WHERE form_id = ?
+                    ");
+                    $migrateResult = $migrateStmt->execute([$formId, $tempFormId]);
+                    $migratedCount = $migrateStmt->rowCount();
+                    
+                    error_log("Submit form - Migrated $migratedCount files from temp to permanent formId");
+                    
+                    // Also rename the upload directory if it exists
+                    $uploadBaseDir = dirname(__DIR__) . '/private/uploads/';
+                    $tempDir = $uploadBaseDir . $tempFormId;
+                    $newDir = $uploadBaseDir . $formId;
+                    
+                    if (is_dir($tempDir) && !is_dir($newDir)) {
+                        if (rename($tempDir, $newDir)) {
+                            error_log("Submit form - Renamed upload directory from $tempFormId to $formId");
+                            
+                            // Update file paths in database
+                            $updatePathsStmt = $pdo->prepare("
+                                UPDATE form_files 
+                                SET file_path = REPLACE(file_path, ?, ?),
+                                    thumbnail_path = REPLACE(thumbnail_path, ?, ?)
+                                WHERE form_id = ?
+                            ");
+                            $updatePathsStmt->execute([
+                                $tempFormId . '/',
+                                $formId . '/',
+                                $tempFormId . '/',
+                                $formId . '/',
+                                $formId
+                            ]);
+                        } else {
+                            error_log("Submit form - Failed to rename upload directory");
+                        }
+                    }
+                } catch (Exception $e) {
+                    error_log("Submit form - File migration error (non-blocking): " . $e->getMessage());
+                    // Don't fail the form save if file migration fails
+                }
+            }
         }
     } else {
         // Fallback bez databáze
