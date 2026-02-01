@@ -10,17 +10,44 @@ const useAutoSave = (formMethods, user, currentStep, delay = 3000) => {
   const [lastSaved, setLastSaved] = useState(null)
   const [formId, setFormId] = useState(null)
   const [saveError, setSaveError] = useState(null)
+  const [isDisabled, setIsDisabled] = useState(false) // Flag to disable auto-save after submission
   const saveTimeoutRef = useRef(null)
 
+  // Function to disable auto-save and clear pending saves
+  const disableAutoSave = () => {
+    console.log('AutoSave: Disabling auto-save')
+    setIsDisabled(true)
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+      saveTimeoutRef.current = null
+    }
+  }
+
+  // Function to re-enable auto-save (for new forms)
+  const enableAutoSave = () => {
+    console.log('AutoSave: Re-enabling auto-save')
+    setIsDisabled(false)
+  }
+
   useEffect(() => {
-    if (!user || !formMethods) {
-      console.log('AutoSave: Missing user or formMethods', { user: !!user, formMethods: !!formMethods })
+    if (!user || !formMethods || isDisabled) {
+      console.log('AutoSave: Missing user, formMethods, or disabled', { 
+        user: !!user, 
+        formMethods: !!formMethods,
+        isDisabled 
+      })
       return
     }
 
     console.log('AutoSave: Setting up watch for user:', user.id)
 
     const subscription = formMethods.watch((data, { name, type }) => {
+      // Don't auto-save if disabled
+      if (isDisabled) {
+        console.log('AutoSave: Skipping - auto-save is disabled')
+        return
+      }
+      
       console.log('AutoSave: Form changed', { field: name, type, hasData: !!data })
       
       // Clear existing timeout
@@ -42,11 +69,11 @@ const useAutoSave = (formMethods, user, currentStep, delay = 3000) => {
         clearTimeout(saveTimeoutRef.current)
       }
     }
-  }, [formMethods, user, currentStep, delay])
+  }, [formMethods, user, currentStep, delay, isDisabled])
 
   const saveFormDraft = async (data) => {
-    if (!user || isSaving) {
-      console.log('AutoSave: Skipping save', { hasUser: !!user, isSaving })
+    if (!user || isSaving || isDisabled) {
+      console.log('AutoSave: Skipping save', { hasUser: !!user, isSaving, isDisabled })
       return
     }
 
@@ -134,7 +161,10 @@ const useAutoSave = (formMethods, user, currentStep, delay = 3000) => {
     formId,
     setFormId,
     saveManually,
-    saveError
+    saveError,
+    disableAutoSave,
+    enableAutoSave,
+    isDisabled
   }
 }
 

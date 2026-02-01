@@ -164,7 +164,7 @@ function App() {
 
   // Auto-save functionality
   const autoSaveStatus = useAutoSave(methods, user, currentStep)
-  const { formId, setFormId } = autoSaveStatus
+  const { formId, setFormId, disableAutoSave, enableAutoSave } = autoSaveStatus
 
   const handleLogin = (userData) => {
     console.log('User logged in:', userData)
@@ -176,6 +176,9 @@ function App() {
 
   const handleEditForm = (form) => {
     console.log('Editing form:', form)
+    // Re-enable auto-save for editing
+    enableAutoSave()
+    
     if (form) {
       // Edit existing form - clear temp ID since we have a real form ID
       clearSessionTempId()
@@ -302,6 +305,8 @@ function App() {
     setCurrentView('form')
     // Clear the session temp ID so new uploads get a fresh temp ID
     clearSessionTempId()
+    // Re-enable auto-save for the new form
+    enableAutoSave()
     console.log('Creating new form - all fields cleared')
     // Scroll to top when creating new form
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -563,6 +568,9 @@ function App() {
         console.log('Server response:', result)
         
         if (result.success) {
+          // IMPORTANT: Disable auto-save FIRST to prevent it from overwriting the 'submitted' status
+          disableAutoSave();
+          
           if (result.requiresGdprConfirmation) {
             alert('Formulář byl úspěšně odeslán. Na váš email jsme zaslali odkaz pro potvrzení souhlasu GDPR.');
           } else {
