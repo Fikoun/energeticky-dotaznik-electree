@@ -1,1 +1,10 @@
-﻿<?php session_start(); if (!isset(\['user_role']) || \['user_role'] !== 'admin') { header('Location: /'); exit(); } \ = \['QUERY_STRING'] ? '?' . \['QUERY_STRING'] : ''; header('Location: /enhanced-admin-form-detail.php' . \); exit(); ?>
+﻿<?php 
+session_start(); 
+if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') { 
+    header('Location: /'); 
+    exit(); 
+} 
+$qs = $_SERVER['QUERY_STRING'] ? '?' . $_SERVER['QUERY_STRING'] : ''; 
+header('Location: /enhanced-admin-form-detail.php' . $qs); 
+exit(); 
+?>

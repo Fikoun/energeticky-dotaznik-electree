@@ -391,6 +391,142 @@ function getFieldLabel($key) {
     return $labels[$key] ?? ucfirst(str_replace(['_', 'Type', 'Has', 'Is'], [' ', ' typ', 'Má ', 'Je '], $key));
 }
 
+// Funkce pro formátování souborů a obrázků
+function formatFileUploads($key, $value) {
+    if (empty($value)) {
+        return '<span class="text-gray-400 italic flex items-center"><i class="fas fa-minus-circle mr-1"></i>Žádné soubory</span>';
+    }
+    
+    // Pokud je hodnota string (URL nebo cesta k souboru)
+    if (is_string($value)) {
+        return formatSingleFile($value);
+    }
+    
+    // Pokud je hodnota pole souborů
+    if (!is_array($value)) {
+        return '<span class="text-gray-400 italic">Neplatný formát</span>';
+    }
+    
+    $files_html = '<div class="space-y-2">';
+    $file_count = 0;
+    
+    foreach ($value as $idx => $file) {
+        $file_count++;
+        
+        // Soubor může být string (URL) nebo objekt s vlastnostmi
+        if (is_string($file)) {
+            $files_html .= formatSingleFile($file);
+        } elseif (is_array($file)) {
+            // Objekt s vlastnostmi jako name, url, path, type
+            $file_url = $file['url'] ?? $file['path'] ?? $file['filePath'] ?? '';
+            $file_name = $file['name'] ?? $file['fileName'] ?? $file['originalName'] ?? basename($file_url);
+            $file_type = $file['type'] ?? $file['mimeType'] ?? '';
+            $file_size = $file['size'] ?? null;
+            
+            if (empty($file_url) && empty($file_name)) {
+                continue;
+            }
+            
+            $files_html .= formatSingleFile($file_url, $file_name, $file_type, $file_size);
+        }
+    }
+    
+    $files_html .= '</div>';
+    
+    if ($file_count === 0) {
+        return '<span class="text-gray-400 italic flex items-center"><i class="fas fa-minus-circle mr-1"></i>Žádné soubory</span>';
+    }
+    
+    return '<div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <div class="text-sm text-gray-600 mb-2"><i class="fas fa-folder-open mr-1"></i> ' . $file_count . ' soubor(ů)</div>
+                ' . $files_html . '
+            </div>';
+}
+
+// Pomocná funkce pro formátování jednoho souboru
+function formatSingleFile($url, $name = null, $type = null, $size = null) {
+    if (empty($url)) {
+        if (!empty($name)) {
+            return '<div class="flex items-center p-2 bg-white rounded border border-gray-200 text-sm">
+                        <i class="fas fa-file text-gray-400 mr-2"></i>
+                        <span class="text-gray-700">' . htmlspecialchars($name) . '</span>
+                    </div>';
+        }
+        return '';
+    }
+    
+    $display_name = $name ?: basename($url);
+    $file_type = $type ?: '';
+    
+    // Detekce typu souboru podle přípony
+    $extension = strtolower(pathinfo($url, PATHINFO_EXTENSION));
+    $is_image = in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp']);
+    $is_pdf = $extension === 'pdf';
+    $is_doc = in_array($extension, ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']);
+    
+    // Také kontrolovat MIME type
+    if (strpos($file_type, 'image/') === 0) {
+        $is_image = true;
+    } elseif (strpos($file_type, 'application/pdf') !== false) {
+        $is_pdf = true;
+    }
+    
+    // Sestavení URL - zajistit že je absolutní
+    $full_url = $url;
+    if (strpos($url, 'http') !== 0 && strpos($url, '/') !== 0) {
+        // Relativní cesta - předpokládáme že je v uploads
+        $full_url = '/uploads/' . $url;
+    }
+    
+    if ($is_image) {
+        // Zobrazit obrázek jako náhled
+        return '<div class="inline-block m-1">
+                    <a href="' . htmlspecialchars($full_url) . '" target="_blank" class="block group">
+                        <div class="relative overflow-hidden rounded-lg border border-gray-200 hover:border-blue-400 transition-colors">
+                            <img src="' . htmlspecialchars($full_url) . '" 
+                                 alt="' . htmlspecialchars($display_name) . '" 
+                                 class="w-32 h-32 object-cover group-hover:scale-105 transition-transform"
+                                 onerror="this.onerror=null; this.parentNode.innerHTML=\'<div class=\\\'w-32 h-32 flex items-center justify-center bg-gray-100 text-gray-400\\\'><i class=\\\'fas fa-image fa-2x\\\'></i></div>\';">
+                            <div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                                ' . htmlspecialchars($display_name) . '
+                            </div>
+                        </div>
+                    </a>
+                </div>';
+    } elseif ($is_pdf) {
+        return '<div class="flex items-center p-2 bg-red-50 rounded border border-red-200 text-sm mb-1">
+                    <i class="fas fa-file-pdf text-red-500 mr-2"></i>
+                    <a href="' . htmlspecialchars($full_url) . '" target="_blank" class="text-blue-600 hover:underline flex-1 truncate">
+                        ' . htmlspecialchars($display_name) . '
+                    </a>
+                    <a href="' . htmlspecialchars($full_url) . '" download class="ml-2 text-gray-500 hover:text-gray-700" title="Stáhnout">
+                        <i class="fas fa-download"></i>
+                    </a>
+                </div>';
+    } elseif ($is_doc) {
+        return '<div class="flex items-center p-2 bg-blue-50 rounded border border-blue-200 text-sm mb-1">
+                    <i class="fas fa-file-word text-blue-500 mr-2"></i>
+                    <a href="' . htmlspecialchars($full_url) . '" target="_blank" class="text-blue-600 hover:underline flex-1 truncate">
+                        ' . htmlspecialchars($display_name) . '
+                    </a>
+                    <a href="' . htmlspecialchars($full_url) . '" download class="ml-2 text-gray-500 hover:text-gray-700" title="Stáhnout">
+                        <i class="fas fa-download"></i>
+                    </a>
+                </div>';
+    } else {
+        // Obecný soubor
+        return '<div class="flex items-center p-2 bg-white rounded border border-gray-200 text-sm mb-1">
+                    <i class="fas fa-file text-gray-400 mr-2"></i>
+                    <a href="' . htmlspecialchars($full_url) . '" target="_blank" class="text-blue-600 hover:underline flex-1 truncate">
+                        ' . htmlspecialchars($display_name) . '
+                    </a>
+                    <a href="' . htmlspecialchars($full_url) . '" download class="ml-2 text-gray-500 hover:text-gray-700" title="Stáhnout">
+                        <i class="fas fa-download"></i>
+                    </a>
+                </div>';
+    }
+}
+
 // Funkce pro formatování hodnot s českými překlady
 function formatFieldValue($key, $value) {
     // Prázdné hodnoty
@@ -885,22 +1021,32 @@ function formatFieldValue($key, $value) {
         if (strpos($key, 'additionalContacts') !== false) {
             $contacts_html = '<div class="space-y-3">';
             foreach ($value as $contact) {
+                if (!is_array($contact)) continue;
                 $is_primary = !empty($contact['isPrimary']) ? ' 👑 Primární' : '';
                 $contacts_html .= '<div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <div class="flex items-center mb-2">
                         <i class="fas fa-user-tie text-blue-600 mr-2"></i>
-                        <span class="font-medium">' . htmlspecialchars($contact['name']) . '</span>
-                        <span class="text-blue-600 text-sm ml-2">' . htmlspecialchars($contact['position']) . $is_primary . '</span>
+                        <span class="font-medium">' . htmlspecialchars($contact['name'] ?? '') . '</span>
+                        <span class="text-blue-600 text-sm ml-2">' . htmlspecialchars($contact['position'] ?? '') . $is_primary . '</span>
                     </div>
                     <div class="text-sm text-gray-600 space-y-1">
-                        <div><i class="fas fa-phone mr-2"></i>' . htmlspecialchars($contact['phone']) . '</div>
-                        <div><i class="fas fa-envelope mr-2"></i>' . htmlspecialchars($contact['email']) . '</div>
+                        <div><i class="fas fa-phone mr-2"></i>' . htmlspecialchars($contact['phone'] ?? '') . '</div>
+                        <div><i class="fas fa-envelope mr-2"></i>' . htmlspecialchars($contact['email'] ?? '') . '</div>
                     </div>
                 </div>';
             }
             $contacts_html .= '</div>';
             
             return $contacts_html;
+        }
+        
+        // Pro soubory a obrázky (file uploads)
+        $file_fields = ['sitePhotos', 'photos', 'visualizations', 'projectDocumentationFiles', 
+                        'distributionCurvesFile', 'billingDocuments', 'cogenerationPhotos',
+                        'connectionContractFile', 'connectionApplicationFile', 'auditDocuments',
+                        'projectDocuments'];
+        if (in_array($key, $file_fields) || strpos($key, 'File') !== false || strpos($key, 'Photos') !== false || strpos($key, 'Documents') !== false) {
+            return formatFileUploads($key, $value);
         }
         
         // Pro detaily společnosti z MERK
@@ -932,7 +1078,7 @@ function formatFieldValue($key, $value) {
                     
                     $details_html .= '<div class="flex items-start">
                         <span class="font-medium text-gray-700 mr-2">' . $label . ':</span>
-                        <span class="text-gray-900">' . htmlspecialchars($val) . '</span>
+                        <span class="text-gray-900">' . htmlspecialchars(is_scalar($val) ? (string)$val : json_encode($val, JSON_UNESCAPED_UNICODE)) . '</span>
                     </div>';
                 }
             }
@@ -941,11 +1087,27 @@ function formatFieldValue($key, $value) {
             return $details_html;
         }
         
-        // Pro obecná pole
+        // Pro obecná pole - bezpečné formátování bez array-to-string conversion
         $formatted = [];
         foreach ($value as $k => $v) {
-            if ($v && $v !== false && $v !== '') {
-                $formatted[] = is_string($k) ? "$k: $v" : $v;
+            if ($v !== null && $v !== false && $v !== '') {
+                // Bezpečně převést hodnotu na string
+                if (is_array($v)) {
+                    // Rekurzivně zpracovat vnořené pole
+                    $nested_items = [];
+                    foreach ($v as $nk => $nv) {
+                        if ($nv !== null && $nv !== false && $nv !== '') {
+                            if (is_scalar($nv)) {
+                                $nested_items[] = is_string($nk) ? "$nk: $nv" : (string)$nv;
+                            }
+                        }
+                    }
+                    if (!empty($nested_items)) {
+                        $formatted[] = is_string($k) ? "$k: " . implode(', ', $nested_items) : implode(', ', $nested_items);
+                    }
+                } elseif (is_scalar($v)) {
+                    $formatted[] = is_string($k) ? "$k: $v" : (string)$v;
+                }
             }
         }
         return !empty($formatted) ? 
@@ -967,19 +1129,31 @@ function formatFieldValue($key, $value) {
     
     // Adresy
     if (strpos($key, 'address') !== false || strpos($key, 'Address') !== false) {
+        $addr_value = is_array($value) ? json_encode($value, JSON_UNESCAPED_UNICODE) : (string)$value;
         return '<div class="flex items-start max-w-sm">
                     <i class="fas fa-map-marker-alt text-red-500 mr-2 mt-1 flex-shrink-0"></i>
-                    <span class="text-gray-900">' . htmlspecialchars($value) . '</span>
+                    <span class="text-gray-900">' . htmlspecialchars($addr_value) . '</span>
                 </div>';
     }
     
     // Číselné hodnoty s jednotkami
     if (strpos($key, 'Power') !== false || strpos($key, 'power') !== false) {
-        return '<span class="font-medium text-blue-600">' . number_format((float)$value, 0, ',', ' ') . '</span> <span class="text-gray-500 text-sm">kW</span>';
+        $numeric_val = is_numeric($value) ? (float)$value : 0;
+        return '<span class="font-medium text-blue-600">' . number_format($numeric_val, 0, ',', ' ') . '</span> <span class="text-gray-500 text-sm">kW</span>';
     }
     
     if (strpos($key, 'Consumption') !== false || strpos($key, 'consumption') !== false) {
-        return '<span class="font-medium text-green-600">' . number_format((float)$value, 0, ',', ' ') . '</span> <span class="text-gray-500 text-sm">kWh</span>';
+        $numeric_val = is_numeric($value) ? (float)$value : 0;
+        return '<span class="font-medium text-green-600">' . number_format($numeric_val, 0, ',', ' ') . '</span> <span class="text-gray-500 text-sm">kWh</span>';
+    }
+    
+    // Zajistit že hodnota je string pro další zpracování
+    if (!is_string($value)) {
+        if (is_array($value)) {
+            // Pole které nebylo zachyceno výše - zobrazit jako JSON
+            return '<div class="bg-gray-100 rounded p-2 text-sm max-w-lg font-mono text-xs overflow-auto">' . htmlspecialchars(json_encode($value, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)) . '</div>';
+        }
+        $value = (string)$value;
     }
     
     // Dlouhé texty
@@ -995,17 +1169,15 @@ function formatFieldValue($key, $value) {
     }
     
     // Kontrola délky textu pro zabránění rozbití layoutu
-    if (is_string($value)) {
-        $maxLength = 100;
-        if (strlen($value) > $maxLength) {
-            $truncated = substr($value, 0, $maxLength);
-            return '<div class="text-gray-900 relative group">
-                        <div class="truncate">' . htmlspecialchars($truncated) . '...</div>
-                        <div class="absolute bottom-full left-0 mb-2 p-3 bg-gray-800 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 max-w-xs whitespace-normal">
-                            ' . htmlspecialchars($value) . '
-                        </div>
-                    </div>';
-        }
+    $maxLength = 100;
+    if (strlen($value) > $maxLength) {
+        $truncated = substr($value, 0, $maxLength);
+        return '<div class="text-gray-900 relative group">
+                    <div class="truncate">' . htmlspecialchars($truncated) . '...</div>
+                    <div class="absolute bottom-full left-0 mb-2 p-3 bg-gray-800 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 max-w-xs whitespace-normal">
+                        ' . htmlspecialchars($value) . '
+                    </div>
+                </div>';
     }
     
     // Výchozí formátování
@@ -1238,6 +1410,142 @@ function getStatusLabel($status) {
                 </div>
             <?php endfor; ?>
         </div>
+
+        <!-- Nahrané soubory -->
+        <?php
+        // Načtení souborů z databáze
+        $files_stmt = $conn->prepare("
+            SELECT id, field_name, original_name, file_name, file_path, file_size, mime_type, thumbnail_path, uploaded_at 
+            FROM form_files 
+            WHERE form_id = ? AND deleted_at IS NULL 
+            ORDER BY field_name, uploaded_at ASC
+        ");
+        $files_stmt->bind_param("s", $form_id);
+        $files_stmt->execute();
+        $files_result = $files_stmt->get_result();
+        $uploaded_files = [];
+        while ($file = $files_result->fetch_assoc()) {
+            $field = $file['field_name'];
+            if (!isset($uploaded_files[$field])) {
+                $uploaded_files[$field] = [];
+            }
+            $uploaded_files[$field][] = $file;
+        }
+        $files_stmt->close();
+
+        // Názvy polí souborů
+        $file_field_labels = [
+            'sitePhotos' => 'Fotografie místa instalace',
+            'visualizations' => 'Vizualizace a nákresy',
+            'projectDocumentationFiles' => 'Projektová dokumentace',
+            'distributionCurvesFile' => 'Odběrové křivky',
+            'billingDocuments' => 'Doklady o vyúčtování',
+            'cogenerationPhotos' => 'Fotografie kogenerační jednotky'
+        ];
+
+        // Formátování velikosti souboru
+        function formatFileSizeAdmin($bytes) {
+            if ($bytes == 0) return '0 B';
+            $units = ['B', 'KB', 'MB', 'GB'];
+            $factor = floor(log($bytes) / log(1024));
+            return round($bytes / pow(1024, $factor), 2) . ' ' . $units[$factor];
+        }
+
+        // Zjištění, zda je soubor obrázek
+        function isImageMimeType($mimeType) {
+            return strpos($mimeType, 'image/') === 0;
+        }
+        ?>
+
+        <?php if (!empty($uploaded_files)): ?>
+        <div class="mt-8 bg-white rounded-2xl shadow-lg overflow-hidden">
+            <div class="bg-gradient-to-r from-teal-500 to-teal-600 px-8 py-6">
+                <div class="flex items-center">
+                    <div class="bg-white/20 rounded-full p-3 mr-4">
+                        <i class="fas fa-paperclip text-2xl text-white"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-bold text-white">Nahrané soubory</h2>
+                        <p class="text-teal-100">Přílohy a dokumentace k formuláři</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6">
+                <?php foreach ($uploaded_files as $field_name => $files): ?>
+                    <div class="mb-6 last:mb-0">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                            <i class="fas fa-folder-open text-teal-500 mr-2"></i>
+                            <?= htmlspecialchars($file_field_labels[$field_name] ?? ucfirst($field_name)) ?>
+                            <span class="ml-2 text-sm font-normal text-gray-500">(<?= count($files) ?>)</span>
+                        </h3>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            <?php foreach ($files as $file): ?>
+                                <?php 
+                                    $isImage = isImageMimeType($file['mime_type'] ?? '');
+                                    $fileUrl = '/public/serve-file.php?id=' . urlencode($file['id']);
+                                    $thumbUrl = $file['thumbnail_path'] ? '/public/serve-file.php?id=' . urlencode($file['id']) . '&thumb=1' : null;
+                                ?>
+                                <div class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white">
+                                    <?php if ($isImage): ?>
+                                        <!-- Náhled obrázku -->
+                                        <a href="<?= htmlspecialchars($fileUrl) ?>" target="_blank" class="block aspect-video bg-gray-100 relative group">
+                                            <img 
+                                                src="<?= htmlspecialchars($thumbUrl ?? $fileUrl) ?>" 
+                                                alt="<?= htmlspecialchars($file['original_name']) ?>"
+                                                class="w-full h-full object-cover"
+                                                loading="lazy"
+                                            />
+                                            <div class="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                                <i class="fas fa-search-plus text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                            </div>
+                                        </a>
+                                    <?php else: ?>
+                                        <!-- Ikona pro ne-obrázky -->
+                                        <a href="<?= htmlspecialchars($fileUrl) ?>" target="_blank" class="block aspect-video bg-gray-50 flex items-center justify-center group">
+                                            <?php
+                                                $extension = strtolower(pathinfo($file['original_name'], PATHINFO_EXTENSION));
+                                                $iconClass = 'fa-file';
+                                                if ($extension === 'pdf') $iconClass = 'fa-file-pdf text-red-500';
+                                                elseif (in_array($extension, ['doc', 'docx'])) $iconClass = 'fa-file-word text-blue-500';
+                                                elseif (in_array($extension, ['xls', 'xlsx', 'csv'])) $iconClass = 'fa-file-excel text-green-500';
+                                                elseif (in_array($extension, ['dwg', 'dxf'])) $iconClass = 'fa-drafting-compass text-orange-500';
+                                            ?>
+                                            <i class="fas <?= $iconClass ?> text-5xl group-hover:scale-110 transition-transform"></i>
+                                        </a>
+                                    <?php endif; ?>
+                                    
+                                    <!-- Info o souboru -->
+                                    <div class="p-3">
+                                        <p class="text-sm font-medium text-gray-900 truncate" title="<?= htmlspecialchars($file['original_name']) ?>">
+                                            <?= htmlspecialchars($file['original_name']) ?>
+                                        </p>
+                                        <div class="flex items-center justify-between mt-1">
+                                            <span class="text-xs text-gray-500">
+                                                <?= formatFileSizeAdmin($file['file_size']) ?>
+                                            </span>
+                                            <span class="text-xs text-gray-400">
+                                                <?= date('d.m.Y', strtotime($file['uploaded_at'])) ?>
+                                            </span>
+                                        </div>
+                                        <a 
+                                            href="<?= htmlspecialchars($fileUrl) ?>" 
+                                            download="<?= htmlspecialchars($file['original_name']) ?>"
+                                            class="mt-2 w-full inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 rounded hover:bg-teal-100 transition-colors"
+                                        >
+                                            <i class="fas fa-download mr-1"></i>
+                                            Stáhnout
+                                        </a>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 </body>
 </html>
