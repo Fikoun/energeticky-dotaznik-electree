@@ -1,16 +1,9 @@
 ﻿<?php
-// Jednoduché připojení k databázi
-$host = 's2.onhost.cz';
-$dbname = 'OH_13_edele';
-$username = 'OH_13_edele';
-$password = 'stjTmLjaYBBKa9u9_U';
+// Centralizované připojení k databázi
+require_once __DIR__ . '/../config/database.php';
 
 try {
-    $conn = new mysqli($host, $username, $password, $dbname);
-    if ($conn->connect_error) {
-        throw new Exception("Connection failed: " . $conn->connect_error);
-    }
-    $conn->set_charset("utf8mb4");
+    $conn = getMysqliConnection();
 } catch (Exception $e) {
     die("Chyba připojení k databázi: " . $e->getMessage());
 }
@@ -1319,8 +1312,8 @@ function getStatusLabel($status) {
                             <?php foreach ($files as $file): ?>
                                 <?php 
                                     $isImage = isImageMimeType($file['mime_type'] ?? '');
-                                    $fileUrl = '/public/' . $file['file_path'];
-                                    $thumbUrl = $file['thumbnail_path'] ? '/public/' . $file['thumbnail_path'] : null;
+                                    $fileUrl = '/public/serve-file.php?id=' . urlencode($file['id']);
+                                    $thumbUrl = $file['thumbnail_path'] ? '/public/serve-file.php?id=' . urlencode($file['id']) . '&thumb=1' : null;
                                 ?>
                                 <div class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white">
                                     <?php if ($isImage): ?>

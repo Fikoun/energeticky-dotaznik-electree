@@ -25,14 +25,10 @@ header('Content-Type: text/html; charset=utf-8');
     <p><strong>Čas:</strong> <?= date('Y-m-d H:i:s') ?></p>
 
     <?php
-    $host = 's2.onhost.cz';
-    $dbname = 'OH_13_edele';
-    $username = 'OH_13_edele';
-    $password = 'stjTmLjaYBBKa9u9_U';
+    require_once __DIR__ . '/config/database.php';
     
     try {
-        $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo = getDbConnection();
         echo "<div class='success'>✅ Připojení k databázi úspěšné</div>";
         
         // 1. Zkontrolovat existenci tabulky

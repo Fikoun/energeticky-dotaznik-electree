@@ -28,30 +28,13 @@ if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
     exit;
 }
 
-// Databázové připojení
+// Databázové připojení - use centralized config
+require_once __DIR__ . '/../config/database.php';
+
 function getDatabaseConnection() {
-    static $pdo = null;
-    
-    if ($pdo !== null) {
-        return $pdo;
-    }
-    
-    $host = 's2.onhost.cz';
-    $dbname = 'OH_13_edele';
-    $username = 'OH_13_edele';
-    $password = 'stjTmLjaYBBKa9u9_U';
-    
     try {
-        $dsn = "mysql:host=$host;dbname=$dbname;charset=utf8mb4";
-        $pdo = new PDO($dsn, $username, $password, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
-        ]);
-        
-        error_log("Database connection established successfully");
-        return $pdo;
-    } catch (PDOException $e) {
+        return getDbConnection();
+    } catch (Exception $e) {
         error_log("Database connection failed: " . $e->getMessage());
         ob_end_clean();
         echo json_encode(['success' => false, 'message' => 'Chyba databáze: ' . $e->getMessage()]);

@@ -1,11 +1,8 @@
 <?php
 header('Content-Type: text/html; charset=utf-8');
 
-// Database configuration
-$host = 's2.onhost.cz';
-$dbname = 'OH_13_edele';
-$username = 'OH_13_edele';
-$password = 'stjTmLjaYBBKa9u9_U';
+// Database configuration - use centralized config
+require_once __DIR__ . '/config/database.php';
 
 $token = $_GET['token'] ?? '';
 
@@ -14,8 +11,7 @@ if (empty($token)) {
 }
 
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo = getDbConnection();
 
     // Find form by GDPR token
     $stmt = $pdo->prepare("SELECT * FROM forms WHERE gdpr_token = ? AND gdpr_confirmed_at IS NULL");

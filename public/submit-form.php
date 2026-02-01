@@ -55,11 +55,10 @@ try {
     $pdo = null;
     
     try {
-        $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo = getDbConnection();
         $useDatabase = true;
         error_log("Submit form - Database connected successfully");
-    } catch (PDOException $e) {
+    } catch (Exception $e) {
         error_log("Database connection failed: " . $e->getMessage());
         $useDatabase = false;
     }

@@ -13,20 +13,10 @@ if (!$form_id) {
     die("<h1>Chyba</h1><p>ID formuláře nebylo poskytnuto</p>");
 }
 
-// Databázové připojení inline
+// Databázové připojení - use centralized config
 try {
-    $host = 's2.onhost.cz';
-    $dbname = 'OH_13_edele';
-    $username = 'OH_13_edele';
-    $password = 'stjTmLjaYBBKa9u9_U';
-    
-    $conn = new mysqli($host, $username, $password, $dbname);
-    
-    if ($conn->connect_error) {
-        throw new Exception("Connection failed: " . $conn->connect_error);
-    }
-    
-    $conn->set_charset("utf8mb4");
+    require_once __DIR__ . '/../config/database.php';
+    $conn = getMysqliConnection();
     
     // Načtení dat z databáze
     $stmt = $conn->prepare("SELECT * FROM forms WHERE id = ?");

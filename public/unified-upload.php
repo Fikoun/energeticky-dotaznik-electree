@@ -62,20 +62,31 @@ try {
         throw new Exception('ID formuláře je povinné');
     }
     
-    // Create upload directories
-    $uploadDir = __DIR__ . '/uploads/';
+    // ISPConfig-compatible path: Use private directory outside web root
+    // /var/www/clients/client13/web99/private/uploads/
+    $webRoot = dirname(__DIR__);
+    $privateDir = dirname($webRoot) . '/private/';
+    
+    // If private directory doesn't exist, fall back to tmp
+    if (!is_dir($privateDir) || !is_writable($privateDir)) {
+        // Use system tmp directory as fallback
+        $uploadDir = sys_get_temp_dir() . '/electree_uploads/';
+    } else {
+        $uploadDir = $privateDir . 'uploads/';
+    }
+    
     $formDir = $uploadDir . $formId . '/';
     $thumbDir = $formDir . 'thumbnails/';
     
     // Check and create directories with error handling
     if (!is_dir($uploadDir)) {
         if (!@mkdir($uploadDir, 0755, true)) {
-            throw new Exception('Nelze vytvořit složku pro nahrávání. Kontaktujte administrátora pro nastavení oprávnění složky: ' . $uploadDir);
+            throw new Exception('Nelze vytvořit složku pro nahrávání: ' . $uploadDir . '. Zkuste kontaktovat administrátora.');
         }
     }
     
     if (!is_writable($uploadDir)) {
-        throw new Exception('Složka pro nahrávání není zapisovatelná. Kontaktujte administrátora pro nastavení oprávnění složky: ' . $uploadDir);
+        throw new Exception('Složka není zapisovatelná: ' . $uploadDir . '. PHP běží jako: ' . get_current_user());
     }
     
     if (!is_dir($formDir)) {
@@ -175,7 +186,20 @@ try {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
             ");
             
-            $relativeFilePath = 'uploads/' . $formId . '/' . $uniqueFileName;
+            // Store relative path for database, but keep full system path info
+            $relativeFilePath = str_replace($webRoot . '/', '', $targetPath);
+            // If file is outside web root, store full path
+            if (strpos($targetPath, $webRoot) === false) {
+                $relativeFilePath = $targetPath;
+            }
+            
+            $relativeThumbnailPath = null;
+            if ($thumbnailPath && file_exists($thumbnailPath)) {
+                $relativeThumbnailPath = str_replace($webRoot . '/', '', $thumbnailPath);
+                if (strpos($thumbnailPath, $webRoot) === false) {
+                    $relativeThumbnailPath = $thumbnailPath;
+                }
+            }
             
             $stmt->execute([
                 $fileId,
@@ -186,19 +210,23 @@ try {
                 $relativeFilePath,
                 $file['size'],
                 $detectedMimeType,
-                $thumbnailUrl
+                $relativeThumbnailPath
             ]);
+            
+            // Create URL for accessing the file
+            $fileUrl = '/public/serve-file.php?id=' . urlencode($fileId);
+            $thumbnailUrl = $relativeThumbnailPath ? '/public/serve-file.php?id=' . urlencode($fileId) . '&thumb=1' : null;
             
             $uploadedFiles[] = [
                 'id' => $fileId,
                 'originalName' => $originalName,
                 'fileName' => $uniqueFileName,
                 'path' => $relativeFilePath,
-                'url' => '/public/' . $relativeFilePath,
+                'url' => $fileUrl,
                 'size' => $file['size'],
                 'formattedSize' => formatFileSize($file['size']),
                 'mimeType' => $detectedMimeType,
-                'thumbnailUrl' => $thumbnailUrl ? '/public/' . $thumbnailUrl : null,
+                'thumbnailUrl' => $thumbnailUrl,
                 'uploadedAt' => date('Y-m-d H:i:s')
             ];
             

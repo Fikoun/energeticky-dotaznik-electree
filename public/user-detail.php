@@ -20,14 +20,9 @@ $user_forms = [];
 $user_stats = [];
 
 try {
-    // Database configuration
-    $host = 's2.onhost.cz';
-    $dbname = 'OH_13_edele';
-    $username = 'OH_13_edele';
-    $dbPassword = 'stjTmLjaYBBKa9u9_U';
-
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $dbPassword);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    // Database configuration - use centralized config
+    require_once __DIR__ . '/../config/database.php';
+    $pdo = getDbConnection();
     
     // Načtení uživatele - zkusíme nejdříve číselné ID, pak admin ID
     $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");

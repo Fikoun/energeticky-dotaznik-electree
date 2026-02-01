@@ -785,8 +785,8 @@ function getStatusLabel($status) {
                             <?php foreach ($files as $file): ?>
                                 <?php 
                                     $isImage = isImageMimeType($file['mime_type'] ?? '');
-                                    $fileUrl = '/public/' . $file['file_path'];
-                                    $thumbUrl = $file['thumbnail_path'] ? '/public/' . $file['thumbnail_path'] : null;
+                                    $fileUrl = '/public/serve-file.php?id=' . urlencode($file['id']);
+                                    $thumbUrl = $file['thumbnail_path'] ? '/public/serve-file.php?id=' . urlencode($file['id']) . '&thumb=1' : null;
                                 ?>
                                 <div class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white">
                                     <?php if ($isImage): ?>

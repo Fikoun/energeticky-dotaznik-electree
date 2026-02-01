@@ -72,20 +72,15 @@ try {
         $action = $data['action'] ?? '';
     }
 
-    // Databázové připojení
+    // Databázové připojení - use centralized config
+    require_once __DIR__ . '/../config/database.php';
     $useDatabase = false;
     $pdo = null;
     
     try {
-        $host = 's2.onhost.cz';
-        $dbname = 'OH_13_edele';
-        $username = 'OH_13_edele';
-        $dbPassword = 'stjTmLjaYBBKa9u9_U';
-
-        $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $dbPassword);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo = getDbConnection();
         $useDatabase = true;
-    } catch (PDOException $e) {
+    } catch (Exception $e) {
         error_log("Database connection failed: " . $e->getMessage());
         $useDatabase = false;
     }

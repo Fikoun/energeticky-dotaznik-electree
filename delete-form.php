@@ -8,16 +8,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-// Database configuration
-$servername = "s2.onhost.cz";
-$username = "OH_13_edele";
-$password = "stjTmLjaYBBKa9u9_U"; 
-$dbname = "OH_13_edele";
+// Database configuration - use centralized config
+require_once __DIR__ . '/config/database.php';
 
 try {
-    $pdo = new PDO("mysql:host=$servername;dbname=$dbname;charset=utf8", $username, $password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch(PDOException $e) {
+    $pdo = getDbConnection();
+} catch(Exception $e) {
     http_response_code(500);
     echo json_encode(['error' => 'Database connection failed']);
     exit;

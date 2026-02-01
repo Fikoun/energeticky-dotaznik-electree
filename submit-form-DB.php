@@ -18,20 +18,9 @@ try {
     
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     
-    // Database connection
-    $host = 's2.onhost.cz';
-    $dbname = 'OH_13_edele';
-    $username = 'OH_13_edele';
-    $password = 'stjTmLjaYBBKa9u9_U';
-    
-    $dsn = "mysql:host=$host;dbname=$dbname;charset=utf8mb4";
-    $options = [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_TIMEOUT => 10,
-    ];
-    
-    $pdo = new PDO($dsn, $username, $password, $options);
+    // Database connection - use centralized config
+    require_once __DIR__ . '/config/database.php';
+    $pdo = getDbConnection();
     
     // GET request for testing
     if ($method === 'GET') {

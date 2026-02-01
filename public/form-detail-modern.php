@@ -29,14 +29,9 @@ if (isset($_SESSION['user_id'])) {
 $form_data = null;
 
 try {
-    // Database configuration
-    $host = 's2.onhost.cz';
-    $dbname = 'OH_13_edele';
-    $username = 'OH_13_edele';
-    $dbPassword = 'stjTmLjaYBBKa9u9_U';
-
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $dbPassword);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    // Database configuration - use centralized config
+    require_once __DIR__ . '/../config/database.php';
+    $pdo = getDbConnection();
     
     $stmt = $pdo->prepare("
         SELECT f.*, u.name as user_name, u.email as user_email 
@@ -47,7 +42,7 @@ try {
     $stmt->execute([$form_id]);
     $form_data = $stmt->fetch(PDO::FETCH_ASSOC);
     
-} catch (PDOException $e) {
+} catch (Exception $e) {
     error_log("Database error in form detail: " . $e->getMessage());
     $form_data = null;
 }
