@@ -2,6 +2,9 @@
 // Form submission API - handles both draft saves and final submissions
 ob_start();
 
+// Load database configuration FIRST
+require_once __DIR__ . '/../config/database.php';
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
@@ -44,9 +47,6 @@ try {
     if (!$data) {
         throw new Exception('Neplatná JSON data');
     }
-
-    // Database configuration - use centralized config
-    require_once __DIR__ . '/../config/database.php';
 
     $useDatabase = false;
     $pdo = null;
