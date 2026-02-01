@@ -34,6 +34,7 @@ class RaynetCustomFields
     public const TYPE_MONETARY = 'MONETARY';
     public const TYPE_PERCENT = 'PERCENT';
     public const TYPE_FILE = 'FILE';
+    public const TYPE_FILE_LINKS = 'TEXT'; // File URLs stored as text
     
     // Group names for custom fields - displayed as sections in Raynet UI
     public const GROUP_COMPANY_INFO = 'EnergyForms - Společnost';
@@ -43,6 +44,7 @@ class RaynetCustomFields
     public const GROUP_TECHNICAL = 'EnergyForms - Technické údaje';
     public const GROUP_BILLING = 'EnergyForms - Fakturace';
     public const GROUP_METADATA = 'EnergyForms - Metadata';
+    public const GROUP_ATTACHMENTS = 'EnergyForms - Přílohy';
     
     // =========================================================================
     // VALUE TRANSLATIONS (English keys → Czech labels for Raynet)
@@ -1040,6 +1042,64 @@ class RaynetCustomFields
             'suggestedName' => 'ef_note_step8',
             'description' => 'Poznámka - Krok 8: Energetický dotazník',
         ],
+        
+        // =====================================================================
+        // FILE UPLOAD FIELDS (stored as URLs/links in Raynet)
+        // =====================================================================
+        'sitePhotos' => [
+            'target' => 'custom',
+            'group' => self::GROUP_ATTACHMENTS,
+            'suggestedName' => 'ef_site_photos',
+            'description' => 'Fotografie místa - odkazy na soubory',
+        ],
+        'visualizations' => [
+            'target' => 'custom',
+            'group' => self::GROUP_ATTACHMENTS,
+            'suggestedName' => 'ef_visualizations',
+            'description' => 'Vizualizace a nákresy - odkazy na soubory',
+        ],
+        'projectDocumentationFiles' => [
+            'target' => 'custom',
+            'group' => self::GROUP_ATTACHMENTS,
+            'suggestedName' => 'ef_project_docs',
+            'description' => 'Projektová dokumentace - odkazy na soubory',
+        ],
+        'distributionCurvesFile' => [
+            'target' => 'custom',
+            'group' => self::GROUP_ATTACHMENTS,
+            'suggestedName' => 'ef_distribution_curves',
+            'description' => 'Odběrové křivky - odkaz na soubor',
+        ],
+        'billingDocuments' => [
+            'target' => 'custom',
+            'group' => self::GROUP_ATTACHMENTS,
+            'suggestedName' => 'ef_billing_docs',
+            'description' => 'Doklady o vyúčtování - odkazy na soubory',
+        ],
+        'cogenerationPhotos' => [
+            'target' => 'custom',
+            'group' => self::GROUP_ATTACHMENTS,
+            'suggestedName' => 'ef_cogen_photos',
+            'description' => 'Fotografie kogenerace - odkazy na soubory',
+        ],
+        'connectionContractFile' => [
+            'target' => 'custom',
+            'group' => self::GROUP_ATTACHMENTS,
+            'suggestedName' => 'ef_connection_contract',
+            'description' => 'Smlouva o připojení - odkaz na soubor',
+        ],
+        'connectionApplicationFile' => [
+            'target' => 'custom',
+            'group' => self::GROUP_ATTACHMENTS,
+            'suggestedName' => 'ef_connection_app',
+            'description' => 'Žádost o připojení - odkaz na soubor',
+        ],
+        'auditDocuments' => [
+            'target' => 'custom',
+            'group' => self::GROUP_ATTACHMENTS,
+            'suggestedName' => 'ef_audit_docs',
+            'description' => 'Dokumenty auditu - odkazy na soubory',
+        ],
     ];
     
     // EnergyForms field definitions for mapping
@@ -1217,6 +1277,17 @@ class RaynetCustomFields
         'stepNotes.6' => ['label' => 'Poznámka - Provozní rámec', 'type' => self::TYPE_TEXT, 'step' => 6, 'group' => self::GROUP_METADATA],
         'stepNotes.7' => ['label' => 'Poznámka - Poznámky', 'type' => self::TYPE_TEXT, 'step' => 7, 'group' => self::GROUP_METADATA],
         'stepNotes.8' => ['label' => 'Poznámka - Energetický dotazník', 'type' => self::TYPE_TEXT, 'step' => 8, 'group' => self::GROUP_METADATA],
+        
+        // File upload fields (stored as URL links)
+        'sitePhotos' => ['label' => 'Fotografie místa', 'type' => self::TYPE_FILE_LINKS, 'step' => 5, 'group' => self::GROUP_ATTACHMENTS],
+        'visualizations' => ['label' => 'Vizualizace a nákresy', 'type' => self::TYPE_FILE_LINKS, 'step' => 5, 'group' => self::GROUP_ATTACHMENTS],
+        'projectDocumentationFiles' => ['label' => 'Projektová dokumentace', 'type' => self::TYPE_FILE_LINKS, 'step' => 7, 'group' => self::GROUP_ATTACHMENTS],
+        'distributionCurvesFile' => ['label' => 'Odběrové křivky', 'type' => self::TYPE_FILE_LINKS, 'step' => 3, 'group' => self::GROUP_ATTACHMENTS],
+        'billingDocuments' => ['label' => 'Doklady o vyúčtování', 'type' => self::TYPE_FILE_LINKS, 'step' => 8, 'group' => self::GROUP_ATTACHMENTS],
+        'cogenerationPhotos' => ['label' => 'Fotografie kogenerace', 'type' => self::TYPE_FILE_LINKS, 'step' => 8, 'group' => self::GROUP_ATTACHMENTS],
+        'connectionContractFile' => ['label' => 'Smlouva o připojení', 'type' => self::TYPE_FILE_LINKS, 'step' => 6, 'group' => self::GROUP_ATTACHMENTS],
+        'connectionApplicationFile' => ['label' => 'Žádost o připojení', 'type' => self::TYPE_FILE_LINKS, 'step' => 6, 'group' => self::GROUP_ATTACHMENTS],
+        'auditDocuments' => ['label' => 'Dokumenty auditu', 'type' => self::TYPE_FILE_LINKS, 'step' => 3, 'group' => self::GROUP_ATTACHMENTS],
     ];
     
     /**
@@ -1309,6 +1380,7 @@ class RaynetCustomFields
             self::GROUP_TECHNICAL => 'Technické údaje',
             self::GROUP_BILLING => 'Fakturace a ceny',
             self::GROUP_METADATA => 'Metadata formuláře',
+            self::GROUP_ATTACHMENTS => 'Přílohy a soubory',
         ];
     }
     
@@ -1723,9 +1795,16 @@ class RaynetCustomFields
             case self::TYPE_TEXT:
             case self::TYPE_STRING:
             case self::TYPE_ENUMERATION:
+                // Handle file arrays - convert to URLs
+                if (is_array($value)) {
+                    return $this->formatFileLinksValue($value);
+                }
                 // Translate value if it's a known key
                 $stringValue = is_string($value) ? $value : (string) $value;
                 return $this->translateValue($stringValue);
+                
+            case self::TYPE_FILE_LINKS:
+                return $this->formatFileLinksValue($value);
                 
             case self::TYPE_HYPERLINK:
             default:
@@ -1776,6 +1855,62 @@ class RaynetCustomFields
         }
         
         return (string) $value;
+    }
+    
+    /**
+     * Format file upload value to a string of URLs
+     * Handles various file data formats from the form
+     * 
+     * @param mixed $value The file value (array of files, single file, or URL string)
+     * @return string Formatted URLs as newline-separated string
+     */
+    private function formatFileLinksValue($value): string
+    {
+        // Already a string (single URL)
+        if (is_string($value)) {
+            return $value;
+        }
+        
+        // Empty value
+        if (empty($value)) {
+            return '';
+        }
+        
+        // Not an array - convert to string
+        if (!is_array($value)) {
+            return (string) $value;
+        }
+        
+        $urls = [];
+        $baseUrl = 'https://ed.electree.cz';
+        
+        foreach ($value as $file) {
+            if (is_string($file)) {
+                // Already a URL string
+                $urls[] = $file;
+            } elseif (is_array($file)) {
+                // File object with various possible URL properties
+                $url = $file['url'] ?? $file['path'] ?? $file['fileUrl'] ?? $file['filePath'] ?? null;
+                
+                if ($url) {
+                    // Add base URL if it's a relative path
+                    if (strpos($url, 'http') !== 0) {
+                        $url = $baseUrl . '/' . ltrim($url, '/');
+                    }
+                    
+                    // Include filename if available
+                    $name = $file['name'] ?? $file['fileName'] ?? $file['originalName'] ?? null;
+                    if ($name) {
+                        $urls[] = "{$name}: {$url}";
+                    } else {
+                        $urls[] = $url;
+                    }
+                }
+            }
+        }
+        
+        // Return as newline-separated string for better readability in Raynet
+        return implode("\n", $urls);
     }
     
     /**
