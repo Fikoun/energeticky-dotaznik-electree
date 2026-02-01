@@ -61,22 +61,11 @@ function getOptimizedDatabaseConnection() {
     
     if ($pdo === null) {
         try {
-            $host = 's2.onhost.cz';
-            $dbname = 'OH_13_edele';
-            $username = 'OH_13_edele';
-            $dbPassword = 'stjTmLjaYBBKa9u9_U';
-
-            $options = [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-                PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
-                PDO::ATTR_PERSISTENT => true // Connection pooling
-            ];
-
-            $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $dbPassword, $options);
+            // Use centralized database config
+            require_once __DIR__ . '/../config/database.php';
+            $pdo = getDbConnection();
             error_log("Optimized database connection established");
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
             error_log("Database connection failed: " . $e->getMessage());
             throw $e;
         }

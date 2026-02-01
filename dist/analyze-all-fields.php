@@ -1,12 +1,8 @@
 <?php
 // Script pro komplexní analýzu všech dat formuláře
-$host = 's2.onhost.cz';
-$dbname = 'OH_13_edele';
-$username = 'OH_13_edele';
-$password = 'stjTmLjaYBBKa9u9_U';
+require_once __DIR__ . '/../config/database.php';
 
-$conn = new mysqli($host, $username, $password, $dbname);
-$conn->set_charset("utf8mb4");
+$conn = getMysqliConnection();
 
 $form_id = 'form_admin_68b6dfca8d028_68cbdf6312e24';
 $stmt = $conn->prepare("SELECT form_data FROM forms WHERE id = ?");

@@ -17,21 +17,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-// Database configuration
-$servername = "s2.onhost.cz";
-$username = "OH_13_edele";
-$password = "stjTmLjaYBBKa9u9_U"; 
-$dbname = "OH_13_edele";
+// Database configuration - use centralized config
+require_once __DIR__ . '/../config/database.php';
 
 $useDatabase = false;
 $pdo = null;
 
 // Zkusíme databázové připojení
 try {
-    $pdo = new PDO("mysql:host=$servername;dbname=$dbname;charset=utf8", $username, $password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo = getDbConnection();
     $useDatabase = true;
-} catch(PDOException $e) {
+} catch(Exception $e) {
     error_log("Database connection failed: " . $e->getMessage());
     $useDatabase = false;
 }

@@ -14,15 +14,10 @@ class UserActivityTracker {
     
     private function initDatabase() {
         try {
-            $host = 's2.onhost.cz';
-            $dbname = 'OH_13_edele';
-            $username = 'OH_13_edele';
-            $dbPassword = 'stjTmLjaYBBKa9u9_U';
-
-            $this->pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $dbPassword);
-            $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            require_once __DIR__ . '/../config/database.php';
+            $this->pdo = getDbConnection();
             $this->useDatabase = true;
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
             error_log("Database connection failed: " . $e->getMessage());
             $this->useDatabase = false;
         }

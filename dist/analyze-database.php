@@ -3,14 +3,10 @@
  * Analýza struktury databáze - zjištění existujících tabulek
  */
 
-$host = 's2.onhost.cz';
-$dbname = 'OH_13_edele';
-$username = 'OH_13_edele';
-$dbPassword = 'stjTmLjaYBBKa9u9_U';
+require_once __DIR__ . '/../config/database.php';
 
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $dbPassword);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo = getDbConnection();
     
     echo "<h1>📊 Analýza databázové struktury</h1>\n";
     
