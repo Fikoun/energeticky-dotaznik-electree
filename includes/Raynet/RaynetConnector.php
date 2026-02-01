@@ -443,6 +443,7 @@ class RaynetConnector
     /**
      * Parse form data from various formats
      * Handles form_data as JSON string or nested array
+     * Also loads file attachments from form_files table
      */
     private function parseFormData(array $formData): array
     {
@@ -450,15 +451,84 @@ class RaynetConnector
         if (isset($formData['form_data']) && is_string($formData['form_data'])) {
             $decoded = json_decode($formData['form_data'], true);
             if ($decoded) {
-                return array_merge($formData, $decoded);
+                $result = array_merge($formData, $decoded);
+            } else {
+                $result = $formData;
+            }
+        }
+        // If form_data is already an array
+        elseif (isset($formData['form_data']) && is_array($formData['form_data'])) {
+            $result = array_merge($formData, $formData['form_data']);
+        } else {
+            $result = $formData;
+        }
+        
+        // Load file attachments from form_files table
+        $formId = $formData['id'] ?? $formData['form_id'] ?? null;
+        if ($formId && $this->pdo) {
+            $files = $this->loadFormFiles($formId);
+            if (!empty($files)) {
+                $result = array_merge($result, $files);
+                error_log("parseFormData: Loaded files for {$formId}: " . json_encode(array_keys($files)));
             }
         }
         
-        // If form_data is already an array
-        if (isset($formData['form_data']) && is_array($formData['form_data'])) {
-            return array_merge($formData, $formData['form_data']);
+        return $result;
+    }
+    
+    /**
+     * Load file attachments from form_files table
+     * Groups files by field_name and builds URLs
+     * 
+     * @param string|int $formId Form ID to load files for
+     * @return array Files grouped by field name with URLs
+     */
+    private function loadFormFiles($formId): array
+    {
+        $files = [];
+        
+        try {
+            // Check if form_files table exists
+            $stmt = $this->pdo->query("SHOW TABLES LIKE 'form_files'");
+            if ($stmt->rowCount() === 0) {
+                return [];
+            }
+            
+            $stmt = $this->pdo->prepare("
+                SELECT field_name, original_name, file_path, file_size, mime_type
+                FROM form_files 
+                WHERE form_id = ? AND deleted_at IS NULL
+                ORDER BY field_name, uploaded_at
+            ");
+            $stmt->execute([$formId]);
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            
+            if (empty($rows)) {
+                return [];
+            }
+            
+            // Group files by field_name
+            foreach ($rows as $row) {
+                $fieldName = $row['field_name'];
+                
+                if (!isset($files[$fieldName])) {
+                    $files[$fieldName] = [];
+                }
+                
+                $files[$fieldName][] = [
+                    'name' => $row['original_name'],
+                    'url' => $row['file_path'],
+                    'size' => $row['file_size'],
+                    'type' => $row['mime_type'],
+                ];
+            }
+            
+            error_log("loadFormFiles: Loaded " . count($rows) . " files for form {$formId}");
+            
+        } catch (\PDOException $e) {
+            error_log("loadFormFiles error: " . $e->getMessage());
         }
         
-        return $formData;
+        return $files;
     }
 }
