@@ -340,12 +340,13 @@ try {
     // Zachytit i fatal errors
     ob_end_clean();
     
-    error_log("Submit form fatal error: " . $e->getMessage());
+    error_log("Submit form fatal error: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
+    error_log("Stack trace: " . $e->getTraceAsString());
     
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Vnitřní chyba serveru'
+        'error' => 'Vnitřní chyba serveru: ' . $e->getMessage()
     ]);
 }
 ?>
