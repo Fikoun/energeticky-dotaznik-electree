@@ -632,11 +632,11 @@ class RaynetCustomFields
             'suggestedName' => 'ef_customer_type',
             'description' => 'Typ zákazníka (průmysl, komerční, služby...)',
         ],
-        'customerTypeOther' => [
+        'customerType.otherSpecification' => [
             'target' => 'custom',
             'group' => self::GROUP_COMPANY_INFO,
             'suggestedName' => 'ef_customer_type_other',
-            'description' => 'Jiný typ zákazníka - popis',
+            'description' => 'Upřesnění typu zákazníka - jiný',
         ],
         'ean' => [
             'target' => 'custom',
@@ -1203,7 +1203,7 @@ class RaynetCustomFields
         
         // Step 1 additions
         'customerType' => ['label' => 'Typ zákazníka', 'type' => self::TYPE_STRING, 'step' => 1, 'group' => self::GROUP_COMPANY_INFO],
-        'customerTypeOther' => ['label' => 'Typ zákazníka - jiný', 'type' => self::TYPE_STRING, 'step' => 1, 'group' => self::GROUP_COMPANY_INFO],
+        'customerType.otherSpecification' => ['label' => 'Upřesnění typu zákazníka', 'type' => self::TYPE_STRING, 'step' => 1, 'group' => self::GROUP_COMPANY_INFO],
         'ean' => ['label' => 'EAN (elektřina)', 'type' => self::TYPE_STRING, 'step' => 1, 'group' => self::GROUP_COMPANY_INFO],
         'eic' => ['label' => 'EIC kód', 'type' => self::TYPE_STRING, 'step' => 1, 'group' => self::GROUP_COMPANY_INFO],
         'eanGas' => ['label' => 'EAN (plyn)', 'type' => self::TYPE_STRING, 'step' => 1, 'group' => self::GROUP_COMPANY_INFO],
@@ -1825,6 +1825,10 @@ class RaynetCustomFields
         if (is_array($value)) {
             $translated = [];
             foreach ($value as $key => $val) {
+                // Skip non-boolean values like otherSpecification (handled separately)
+                if ($key === 'otherSpecification' || $key === 'main') {
+                    continue;
+                }
                 // For associative arrays like {heating: true, cooking: true}
                 if (is_string($key) && ($val === true || $val === '1' || $val === 1)) {
                     $translated[] = self::VALUE_TRANSLATIONS[$key] ?? $key;
