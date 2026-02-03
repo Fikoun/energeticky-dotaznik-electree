@@ -1,17 +1,74 @@
 import { useState, useEffect, useRef } from 'react'
 
+// Storage key for persisting form ID across page reloads
+const FORM_ID_STORAGE_KEY = 'batteryForm_currentFormId'
+
 // Get the session temp form ID (for file upload migration)
 const getSessionTempFormId = () => {
   return sessionStorage.getItem('batteryForm_tempFormId') || null
 }
 
+// Get persisted form ID from localStorage
+const getPersistedFormId = () => {
+  try {
+    const stored = localStorage.getItem(FORM_ID_STORAGE_KEY)
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      // Check if the stored formId is still valid (not older than 24 hours)
+      if (parsed.timestamp) {
+        const hoursDiff = (Date.now() - parsed.timestamp) / (1000 * 60 * 60)
+        if (hoursDiff < 24) {
+          return parsed.formId
+        }
+        // Expired, clear it
+        localStorage.removeItem(FORM_ID_STORAGE_KEY)
+      }
+    }
+  } catch (error) {
+    console.error('Error loading persisted formId:', error)
+  }
+  return null
+}
+
+// Persist form ID to localStorage
+const persistFormId = (formId) => {
+  try {
+    if (formId) {
+      localStorage.setItem(FORM_ID_STORAGE_KEY, JSON.stringify({
+        formId,
+        timestamp: Date.now()
+      }))
+    }
+  } catch (error) {
+    console.error('Error persisting formId:', error)
+  }
+}
+
+// Clear persisted form ID (called on form submission or new form)
+export const clearPersistedFormId = () => {
+  try {
+    localStorage.removeItem(FORM_ID_STORAGE_KEY)
+  } catch (error) {
+    console.error('Error clearing persisted formId:', error)
+  }
+}
+
 const useAutoSave = (formMethods, user, currentStep, delay = 3000) => {
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState(null)
-  const [formId, setFormId] = useState(null)
+  // Initialize formId from localStorage to persist across page reloads
+  const [formId, setFormIdState] = useState(() => getPersistedFormId())
   const [saveError, setSaveError] = useState(null)
   const [isDisabled, setIsDisabled] = useState(false) // Flag to disable auto-save after submission
   const saveTimeoutRef = useRef(null)
+  
+  // Wrapper to persist formId when it changes
+  const setFormId = (newFormId) => {
+    setFormIdState(newFormId)
+    if (newFormId) {
+      persistFormId(newFormId)
+    }
+  }
 
   // Function to disable auto-save and clear pending saves
   const disableAutoSave = () => {

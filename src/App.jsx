@@ -14,7 +14,7 @@ import FormHistory from './components/FormHistory'
 import OfflineNotification from './components/OfflineNotification'
 import TopBar from './components/TopBar'
 import Login from './components/Login'
-import useAutoSave from './hooks/useAutoSave'
+import useAutoSave, { clearPersistedFormId } from './hooks/useAutoSave'
 import { clearSessionTempId } from './hooks/useFileUpload'
 import { Battery, Zap } from 'lucide-react'
 import { saveFormData, loadFormData, isOffline, addToSubmissionQueue, initializeOfflineSupport } from './utils/formStorage'
@@ -188,8 +188,9 @@ function App() {
       setEditingForm(form)
       console.log('Form data loaded for editing:', Object.keys(formData))
     } else {
-      // New form - clear temp ID to get a fresh one
+      // New form - clear temp ID and persisted formId to get a fresh start
       clearSessionTempId()
+      clearPersistedFormId()
       methods.reset()
       setFormId(null)
       setEditingForm(null)
@@ -305,6 +306,8 @@ function App() {
     setCurrentView('form')
     // Clear the session temp ID so new uploads get a fresh temp ID
     clearSessionTempId()
+    // Clear persisted formId so a new one is created
+    clearPersistedFormId()
     // Re-enable auto-save for the new form
     enableAutoSave()
     console.log('Creating new form - all fields cleared')
@@ -391,6 +394,8 @@ function App() {
     setFormId(null)
     // Clear session temp ID on logout
     clearSessionTempId()
+    // Clear persisted formId on logout
+    clearPersistedFormId()
     methods.reset()
   }
 
@@ -510,6 +515,10 @@ function App() {
     console.log('Form submission started')
     setIsSubmitting(true)
     
+    // IMPORTANT: Disable auto-save IMMEDIATELY to prevent race conditions
+    // where auto-save could overwrite the 'submitted' status
+    disableAutoSave()
+    
     try {
       // Generate or use existing form ID
       const currentFormId = formId || `form_${user?.id || 'anonymous'}_${Date.now()}`;
@@ -568,9 +577,6 @@ function App() {
         console.log('Server response:', result)
         
         if (result.success) {
-          // IMPORTANT: Disable auto-save FIRST to prevent it from overwriting the 'submitted' status
-          disableAutoSave();
-          
           if (result.requiresGdprConfirmation) {
             alert('Formulář byl úspěšně odeslán. Na váš email jsme zaslali odkaz pro potvrzení souhlasu GDPR.');
           } else {
@@ -581,6 +587,8 @@ function App() {
           localStorage.removeItem('batteryFormData');
           // Clear session temp ID since form is submitted
           clearSessionTempId();
+          // Clear persisted formId since form is submitted
+          clearPersistedFormId();
           setSubmissionComplete(true);
           setEditingForm(null);
           setFormId(null);
@@ -594,6 +602,9 @@ function App() {
       }
     } catch (error) {
       console.error('Error submitting form:', error);
+      
+      // Re-enable auto-save since submission failed - user can continue editing
+      enableAutoSave();
       
       // Show detailed error message
       let errorMessage = 'Došlo k chybě při odesílání formuláře: ' + error.message
