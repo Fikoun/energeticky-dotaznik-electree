@@ -8,6 +8,13 @@
 set -e  # Exit on error
 echo "📦 Post-build: Configuring dist/ for Apache deployment..."
 
+# Detect if running on production (ISPConfig)
+IS_PRODUCTION=false
+if [[ "$PWD" == *"/var/www/clients/"* ]] || [[ "$PWD" == *"/web/"* ]]; then
+    IS_PRODUCTION=true
+    echo "🔧 Production environment detected!"
+fi
+
 # ============================================
 # Create required directories
 # ============================================
@@ -32,9 +39,7 @@ echo "  Creating dist/public/ structure for /public/*.php API calls..."
 cp public/*.php dist/public/
 cp public/UserActivityTracker.php dist/public/ 2>/dev/null || true
 
-# Upload handlers need to be in dist/public/ (React calls /public/immediate-upload.php)
-cp immediate-upload.php dist/public/
-cp upload-handler.php dist/public/
+# Note: Old upload handlers removed - now using unified-upload.php
 
 # ============================================
 # Configuration files
@@ -105,14 +110,51 @@ RewriteRule ^ index.html [L]
     ExpiresByType image/png "access plus 1 year"
     ExpiresByType image/svg+xml "access plus 1 year"
     ExpiresByType text/css "access plus 1 month"
-    ExpiresByType application/javascript "access plus 1 month"
-</IfModule>
-HTACCESS
+    ExpiresByType appl 2>/dev/null || true
+chmod 755 dist/public/uploads 2>/dev/null || true
+chmod 644 dist/.htaccess 2>/dev/null || true
 
 # ============================================
-# Set proper permissions
+# Production-specific setup (ISPConfig)
 # ============================================
-chmod 755 dist/uploads
+if [ "$IS_PRODUCTION" = true ]; then
+    echo "🚀 Setting up production environment..."
+    
+    # Create /private/uploads/ for ISPConfig file storage
+    if [[ "$PWD" == *"/web99/web"* ]]; then
+        PRIVATE_DIR="/var/www/clients/client13/web99/private/uploads"
+    else
+        # Fallback: try to find parent of web/ directory
+        WEB_ROOT=$(pwd)
+        PARENT_DIR=$(dirname "$WEB_ROOT")
+        PRIVATE_DIR="$PARENT_DIR/private/uploads"
+    fi
+    
+    echo "  Creating private uploads directory: $PRIVATE_DIR"
+    mkdir -p "$PRIVATE_DIR" 2>/dev/null || echo "  ⚠️  Could not create $PRIVATE_DIR (may need manual creation)"
+    
+    # Try to set permissions (may fail if not owner, that's ok)
+    chmod 755 "$PRIVATE_DIR" 2>/dev/null || true
+    
+    # Create log directory if it doesn't exist
+    LOG_DIR="$PARENT_DIR/log"
+    mkdir -p "$LOG_DIR" 2>/dev/null || true
+    
+    echo "  ✅ Production setup complete"
+    echo "  📁 Private uploads: $PRIVATE_DIR"
+fi
+
+if [ "$IS_PRODUCTION" = true ]; then
+    echo "✨ Production deployment complete!"
+    echo "   Running on: $(hostname)"
+    echo "   Path: $PWD"
+else
+    echo "📝 Apache VirtualHost requirements:"
+    echo "   - DocumentRoot pointing to dist/"
+    echo "   - mod_rewrite enabled"
+    echo "   - mod_headers enabled"
+    echo "   - AllowOverride All"
+fi
 chmod 755 dist/public/uploads
 chmod 644 dist/.htaccess
 

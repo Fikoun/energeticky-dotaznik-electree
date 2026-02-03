@@ -127,10 +127,10 @@ header('Content-Type: text/html; charset=utf-8');
                         <span id="raynet-status-text" class="text-sm text-gray-600">Načítám...</span>
                     </div>
                     <button onclick="testConnection()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm font-medium flex items-center">
-                        <span class="mr-2">🔌</span> Test připojení
+                      Test připojení
                     </button>
                     <button onclick="syncAllPending()" id="syncAllBtn" class="bg-raynet-600 hover:bg-raynet-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center">
-                        <span class="mr-2">🔄</span> Synchronizovat vše
+                        Synchronizovat vše
                     </button>
                 </div>
             </div>
