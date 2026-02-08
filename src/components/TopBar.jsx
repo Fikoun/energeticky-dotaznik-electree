@@ -1,4 +1,4 @@
-import { User, FileText, LogOut, Save, Clock, AlertCircle, Shield, Settings, Plus } from 'lucide-react'
+import { User, FileText, LogOut, Save, Clock, AlertCircle, Shield, Settings, Plus, FlaskConical } from 'lucide-react'
 
 const TopBar = ({ 
   user, 
@@ -6,7 +6,8 @@ const TopBar = ({
   onViewChange, 
   onLogout, 
   autoSaveStatus,
-  onNewForm 
+  onNewForm,
+  onPrefillTestData 
 }) => {
   const { isSaving, lastSaved, saveError } = autoSaveStatus || {}
 
@@ -100,14 +101,24 @@ const TopBar = ({
 
               {/* Admin Panel Button */}
               {user && user.role === 'admin' && (
-                <button
-                  onClick={handleAdminPanel}
-                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
-                  title="Admin Panel"
-                >
-                  <Shield className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Admin</span>
-                </button>
+                <>
+                  <button
+                    onClick={onPrefillTestData}
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors"
+                    title="Předvyplnit testovací data"
+                  >
+                    <FlaskConical className="h-4 w-4 mr-2" />
+                    <span className="hidden sm:inline">Test data</span>
+                  </button>
+                  <button
+                    onClick={handleAdminPanel}
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+                    title="Admin Panel"
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    <span className="hidden sm:inline">Admin</span>
+                  </button>
+                </>
               )}
 
               <button

@@ -19,6 +19,7 @@ import { clearSessionTempId } from './hooks/useFileUpload'
 import { Battery, Zap } from 'lucide-react'
 import { saveFormData, loadFormData, isOffline, addToSubmissionQueue, initializeOfflineSupport } from './utils/formStorage'
 import { uploadFiles } from './utils/fileUpload'
+import { getTestFormData } from './utils/testFormData'
 
 const TOTAL_STEPS = 8
 
@@ -368,6 +369,19 @@ function App() {
     return () => subscription.unsubscribe();
   }, [methods, currentStep]);
 
+  const handlePrefillTestData = () => {
+    if (!user || user.role !== 'admin') return
+    const testData = getTestFormData()
+    methods.reset(testData)
+    // Mark all steps as visited so admin can navigate freely
+    const allSteps = new Set()
+    for (let i = 1; i <= TOTAL_STEPS; i++) allSteps.add(i)
+    setVisitedSteps(allSteps)
+    setCurrentStep(1)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    console.log('Form prefilled with test data')
+  }
+
   const handleLogout = async () => {
     try {
       // Volání auth API pro odhlášení
@@ -693,6 +707,7 @@ function App() {
           onLogout={handleLogout}
           autoSaveStatus={autoSaveStatus}
           onNewForm={handleNewForm}
+          onPrefillTestData={handlePrefillTestData}
         />
 
         <div className="py-8 px-4">
