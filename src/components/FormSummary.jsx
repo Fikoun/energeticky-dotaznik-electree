@@ -30,10 +30,56 @@ const FormSummary = ({ user, stepNotes, stepNames }) => {
       return value.name
     }
     
-    if (typeof value === 'object' && value.length === 0) {
-      return defaultText
+    // Handle arrays and array-like values
+    if (Array.isArray(value)) {
+      const meaningfulItems = value
+        .map(item => {
+          if (item === null || item === undefined || item === '' || item === false) {
+            return null
+          }
+          if (typeof item === 'string' || typeof item === 'number') {
+            return String(item)
+          }
+          if (typeof item === 'object' && item?.name) {
+            return item.name
+          }
+          return null
+        })
+        .filter(Boolean)
+
+      return meaningfulItems.length > 0 ? meaningfulItems.join(', ') : defaultText
+    }
+
+    // Avoid rendering empty plain objects
+    if (typeof value === 'object') {
+      const hasContent = Object.values(value).some(v => v !== null && v !== '' && v !== false && v !== undefined)
+      if (!hasContent) return defaultText
     }
     return String(value)
+  }
+
+  const renderBadgeList = (items, fallbackText = 'Nevybráno') => {
+    if (!items || items.length === 0) {
+      return <span className="text-gray-500">{fallbackText}</span>
+    }
+
+    return (
+      <div className="flex flex-wrap gap-2">
+        {items.map((item, index) => {
+          const label = typeof item === 'string' ? item : item.label
+          const icon = typeof item === 'string' ? null : item.icon
+          return (
+            <span
+              key={`${label}-${index}`}
+              className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gray-100 text-gray-800 text-xs font-medium"
+            >
+              {icon && <span aria-hidden>{icon}</span>}
+              <span>{label}</span>
+            </span>
+          )
+        })}
+      </div>
+    )
   }
 
   // Helper function to format uploaded files from server
@@ -129,7 +175,7 @@ const FormSummary = ({ user, stepNotes, stepNames }) => {
       batteryCycles: { 'once': '1x denně', 'multiple': 'Vícekrát denně', 'recommend': 'Neznámo - doporučit' },
       requiresBackup: { 'yes': 'Ano', 'no': 'Ne' },
       backupDuration: { 'minutes': 'Desítky minut', 'hours-1-3': '1-3 hodiny', 'hours-3-plus': 'Více než 3 hodiny' },
-      priceOptimization: { 'yes': 'Ano', 'no': 'Ne' },
+      priceOptimization: { 'yes': 'Ano', 'no': 'Ne', 'unsure': 'Nejsem si jistý' },
       hasElectricityProblems: { 'yes': 'Ano', 'no': 'Ne' },
       hasEnergyAudit: { 'yes': 'Ano', 'no': 'Ne' },
       hasOwnEnergySource: { 'yes': 'Ano', 'no': 'Ne' },
@@ -168,33 +214,53 @@ const FormSummary = ({ user, stepNotes, stepNames }) => {
 
   // Get selected customer types from FormStep1
   const getSelectedCustomerTypes = () => {
-    if (!formData.customerType) return 'Nevybráno'
+    if (!formData.customerType) return []
     
-    const types = []
-    if (formData.customerType.industrial) types.push('🏭 Průmysl')
-    if (formData.customerType.commercial) types.push('🏢 Komerční objekt') 
-    if (formData.customerType.services) types.push('🚚 Služby / Logistika')
-    if (formData.customerType.agriculture) types.push('🌾 Zemědělství')
-    if (formData.customerType.public) types.push('🏛️ Veřejný sektor')
-    if (formData.customerType.other) types.push('❓ Jiný')
-    
-    return types.length > 0 ? types.join(', ') : 'Nevybráno'
+    const typeLabels = {
+      industrial: { label: 'Průmysl', icon: '🏭' },
+      commercial: { label: 'Komerční objekt', icon: '🏢' },
+      services: { label: 'Služby / Logistika', icon: '🚚' },
+      agriculture: { label: 'Zemědělství', icon: '🌾' },
+      public: { label: 'Veřejný sektor', icon: '🏛️' }
+    }
+
+    const selected = Object.entries(typeLabels)
+      .filter(([key]) => formData.customerType?.[key])
+      .map(([, meta]) => meta)
+
+    if (formData.customerType.other && formData.customerType.otherSpecification) {
+      selected.push({ label: formData.customerType.otherSpecification, icon: '❓' })
+    } else if (formData.customerType.other) {
+      selected.push({ label: 'Jiný typ', icon: '❓' })
+    }
+
+    return selected
   }
 
   // Get selected goals from FormStep4
   const getSelectedGoals = () => {
-    if (!formData.goals) return 'Nevybráno'
+    if (!formData.goals) return []
     
-    const goals = []
-    if (formData.goals.energyIndependence) goals.push('Energetická nezávislost')
-    if (formData.goals.costSaving) goals.push('Úspora nákladů')
-    if (formData.goals.backupPower) goals.push('Záložní napájení')
-    if (formData.goals.peakShaving) goals.push('Peak shaving')
-    if (formData.goals.gridStabilization) goals.push('Stabilizace sítě')
-    if (formData.goals.environmentalBenefit) goals.push('Ekologický přínos')
-    if (formData.goals.other) goals.push('Jiné')
-    
-    return goals.length > 0 ? goals.join(', ') : 'Nevybráno'
+    const goalLabels = {
+      fveOverflow: { label: 'Úspora z přetoků z FVE', icon: '☀️' },
+      peakShaving: { label: 'Posun spotřeby (peak shaving)', icon: '📉' },
+      backupPower: { label: 'Záloha při výpadku sítě', icon: '🛡️' },
+      machineSupport: { label: 'Podpora výkonu strojů', icon: '⚙️' },
+      powerReduction: { label: 'Snížení rezervovaného příkonu', icon: '🔌' },
+      energyTrading: { label: 'Možnost obchodování s energií', icon: '💱' },
+      subsidy: { label: 'Získání dotace', icon: '🎯' },
+      other: { label: 'Jiný účel', icon: '❓' }
+    }
+
+    const selected = Object.entries(goalLabels)
+      .filter(([key]) => formData.goals?.[key])
+      .map(([, meta]) => meta)
+
+    if (formData.goals?.other && formData.otherPurposeDescription) {
+      selected.push({ label: formData.otherPurposeDescription, icon: '📝' })
+    }
+
+    return selected
   }
 
   // Get priorities from FormStep4
@@ -202,10 +268,12 @@ const FormSummary = ({ user, stepNotes, stepNames }) => {
     const priorityLabels = {
       'fve-overflow': 'Úspora z přetoků z FVE',
       'peak-shaving': 'Posun spotřeby (peak shaving)',
-      'backup-power': 'Záložní napájení',
-      'grid-services': 'Služby pro síť',
-      'cost-optimization': 'Optimalizace nákladů na elektřinu',
-      'environmental': 'Ekologický přínos'
+      'backup-power': 'Záloha při výpadku sítě',
+      'machine-support': 'Podpora výkonu strojů',
+      'power-reduction': 'Snížení rezervovaného příkonu',
+      'energy-trading': 'Možnost obchodování s energií',
+      subsidy: 'Získání dotace',
+      other: 'Jiný účel'
     }
     
     return {
@@ -312,7 +380,10 @@ const FormSummary = ({ user, stepNotes, stepNames }) => {
                 <div className="md:col-span-2"><span className="font-medium">Adresa sídla firmy:</span> {formatValue(formData.companyAddress)}</div>
                 <div className="md:col-span-2"><span className="font-medium">Adresa odběrného místa:</span> {formatValue(formData.address)}</div>
                 <div><span className="font-medium">Stejná adresa jako sídlo:</span> {formatValue(formData.sameAsCompanyAddress, 'Ne')}</div>
-                <div className="md:col-span-2"><span className="font-medium">Typ zákazníka:</span> {getSelectedCustomerTypes()}</div>
+                <div className="md:col-span-2">
+                  <span className="font-medium">Typ zákazníka:</span>
+                  <div className="mt-1">{renderBadgeList(getSelectedCustomerTypes(), 'Nevybráno')}</div>
+                </div>
                 {formData.customerType?.other && formData.customerType?.otherSpecification && (
                   <div className="md:col-span-2"><span className="font-medium">Upřesnění typu:</span> {formatValue(formData.customerType.otherSpecification)}</div>
                 )}
@@ -723,7 +794,10 @@ const FormSummary = ({ user, stepNotes, stepNames }) => {
                 4. Cíle a očekávání
               </h4>
               <div className="space-y-3 text-sm">
-                <div><span className="font-medium">Vybrané cíle:</span> {getSelectedGoals()}</div>
+                <div>
+                  <span className="font-medium">Vybrané cíle:</span>
+                  <div className="mt-1">{renderBadgeList(getSelectedGoals(), 'Nevybráno')}</div>
+                </div>
                 {formData.goals?.other && formData.otherPurposeDescription && (
                   <div><span className="font-medium">Jiný účel:</span> {formatValue(formData.otherPurposeDescription)}</div>
                 )}
