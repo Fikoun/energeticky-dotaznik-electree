@@ -4,17 +4,7 @@ ob_start();
 
 // Load database configuration FIRST - with explicit error handling
 $dbConfigPath = __DIR__ . '/../config/database.php';
-error_log("Submit form: Checking path: " . $dbConfigPath . " exists: " . (file_exists($dbConfigPath) ? 'YES' : 'NO'));
 
-if (!file_exists($dbConfigPath)) {
-    $dbConfigPath = dirname(__DIR__) . '/config/database.php';
-    error_log("Submit form: Checking path: " . $dbConfigPath . " exists: " . (file_exists($dbConfigPath) ? 'YES' : 'NO'));
-}
-
-if (file_exists($dbConfigPath)) {
-    require_once $dbConfigPath;
-    error_log("Submit form: Loaded database config, getDbConnection exists: " . (function_exists('getDbConnection') ? 'YES' : 'NO'));
-}
 
 // Fallback: define functions inline if not loaded
 if (!function_exists('getDbConnection')) {

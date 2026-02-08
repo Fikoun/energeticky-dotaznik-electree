@@ -86,28 +86,7 @@ export const validateEmail = async (email) => {
 
     const data = await response.json();
     
-    // Kontrola existence MX záznamů
-    if (data.Status === 0 && data.Answer && data.Answer.length > 0) {
-      // Našli jsme MX záznamy, doména existuje
-      return true;
-    } else {
-      // Zkusíme ještě A záznam (některé domény nemají MX ale mají A)
-      try {
-        const aResponse = await fetch(`https://dns.google/resolve?name=${domain}&type=A&cd=false`, {
-          signal: AbortSignal.timeout(3000)
-        });
-        if (aResponse.ok) {
-          const aData = await aResponse.json();
-          if (aData.Status === 0 && aData.Answer && aData.Answer.length > 0) {
-            return true;
-          }
-        }
-      } catch (aError) {
-        console.warn('A záznam kontrola selhala:', aError);
-      }
-      
-      return 'E-mailová doména neexistuje nebo nemá poštovní server';
-    }
+    
   } catch (error) {
     console.warn('Chyba při ověřování e-mailové domény:', error);
     return true; // Pokud ověření selže, povolíme email

@@ -19,7 +19,7 @@ try {
     $form = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$form) {
-        die('<h1>Chyba</h1><p>Neplatný nebo již použitý odkaz pro potvrzení GDPR.</p>');
+       die('<h1>Chyba</h1><p>Neplatný nebo již použitý odkaz pro potvrzení GDPR.</p>');
     }
 
     $formData = json_decode($form['form_data'], true);
@@ -29,9 +29,6 @@ try {
         // Update GDPR confirmation
         $stmt = $pdo->prepare("UPDATE forms SET gdpr_confirmed_at = NOW(), status = 'confirmed' WHERE id = ?");
         $stmt->execute([$form['id']]);
-
-        // Send data to Raynet
-        $raynetSuccess = sendToRaynet($formData, $form['id']);
 
         // Send notification email to admin
         sendAdminNotification($form, $formData);
@@ -976,77 +973,6 @@ function showSuccessPage($formId, $raynetSuccess) {
     <?php
 }
 
-function sendToRaynet($formData, $formId) {
-    try {
-        // Raynet API configuration
-        $raynetApiUrl = 'https://app.raynet.cz/api/v2/company/';
-        $raynetUsername = 'your_raynet_username';
-        $raynetApiKey = 'your_raynet_api_key';
-
-        // Prepare Raynet data structure
-        $raynetData = [
-            'name' => $formData['companyName'] ?? ($formData['contactPerson'] ?? 'Neznámá společnost'),
-            'person' => [
-                'firstName' => $formData['contactPerson'] ?? '',
-                'contactInfo' => [
-                    'email' => $formData['email'] ?? '',
-                    'tel' => $formData['phone'] ?? ''
-                ]
-            ],
-            'addresses' => [
-                [
-                    'address' => [
-                        'name' => $formData['address'] ?? ''
-                    ],
-                    'contactInfo' => [
-                        'email' => $formData['email'] ?? '',
-                        'tel' => $formData['phone'] ?? ''
-                    ]
-                ]
-            ],
-            'customFields' => [
-                'batteryFormId' => $formId,
-                'technicalParams' => json_encode($formData),
-                'submissionDate' => date('Y-m-d H:i:s')
-            ],
-            'note' => "Automaticky vytvořeno z dotazníku bateriových systémů. ID: $formId\n\nKlíčové údaje:\n" . 
-                     "- Rezervovaný příkon: " . ($formData['reservedPower'] ?? 'N/A') . " kW\n" .
-                     "- Měsíční spotřeba: " . ($formData['monthlyConsumption'] ?? 'N/A') . " MWh\n" .
-                     "- FVE instalace: " . ($formData['hasFveVte'] === 'yes' ? 'Ano' : 'Ne'),
-            'category' => 'lead',
-            'tags' => ['battery-form', 'website-lead', 'gdpr-confirmed']
-        ];
-
-        // Send to Raynet
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $raynetApiUrl);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($raynetData));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'X-Instance-Name: your_instance_name',
-            'Authorization: Basic ' . base64_encode($raynetUsername . ':' . $raynetApiKey)
-        ]);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode >= 200 && $httpCode < 300) {
-            error_log("Successfully sent form $formId to Raynet");
-            return true;
-        } else {
-            error_log("Failed to send form $formId to Raynet. HTTP Code: $httpCode, Response: $response");
-            return false;
-        }
-
-    } catch (Exception $e) {
-        error_log("Raynet API error for form $formId: " . $e->getMessage());
-        return false;
-    }
-}
 
 function sendAdminNotification($form, $formData) {
     $subject = "Nový potvrzený dotazník bateriových systémů";

@@ -1289,6 +1289,36 @@ function getStatusLabel($status) {
                 grid-template-columns: 1fr;
             }
         }
+        
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 9999;
+            animation: slideIn 0.3s ease-out;
+        }
+        .toast.success {
+            background-color: #10b981;
+            color: white;
+        }
+        .toast.error {
+            background-color: #ef4444;
+            color: white;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
@@ -1310,6 +1340,11 @@ function getStatusLabel($status) {
                     <span class="px-3 py-1 text-sm font-medium rounded-full <?= getStatusClass($form_data['status']) ?>">
                         <?= getStatusLabel($form_data['status']) ?>
                     </span>
+                    <?php if (!$form_data['gdpr_confirmed_at']): ?>
+                    <button onclick="resendGdprEmail()" id="resendGdprBtn" class="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm">
+                        <i class="fas fa-envelope mr-2"></i>Odeslat GDPR email
+                    </button>
+                    <?php endif; ?>
                     <button onclick="window.print()" class="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors text-sm">
                         <i class="fas fa-print mr-2"></i>Tisk
                     </button>
@@ -1344,6 +1379,16 @@ function getStatusLabel($status) {
                             <div class="flex items-center">
                                 <i class="fas fa-user mr-2"></i>
                                 <span class="text-sm">Uživatel ID: <?= htmlspecialchars($form_data['user_id'] ?? 'Neznámý') ?></span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-shield-alt mr-2"></i>
+                                <span class="text-sm">GDPR: 
+                                    <?php if ($form_data['gdpr_confirmed_at']): ?>
+                                        <span class="text-green-300 font-medium">✓ Potvrzeno (<?= date('d.m.Y H:i', strtotime($form_data['gdpr_confirmed_at'])) ?>)</span>
+                                    <?php else: ?>
+                                        <span class="text-orange-300 font-medium">⚠ Nepotvrzeno</span>
+                                    <?php endif; ?>
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -1547,5 +1592,64 @@ function getStatusLabel($status) {
         </div>
         <?php endif; ?>
     </div>
+
+    <script>
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <div class="flex items-center">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'} mr-2"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        async function resendGdprEmail() {
+            const formId = <?= json_encode($form_id) ?>;
+            const btn = document.getElementById('resendGdprBtn');
+            
+            if (!confirm('Opravdu chcete znovu odeslat GDPR potvrzovací email?')) {
+                return;
+            }
+            
+            // Disable button
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Odesílání...';
+            
+            try {
+                const response = await fetch('/resend-gdpr.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ formId })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    btn.innerHTML = '<i class="fas fa-check mr-2"></i>Odesláno!';
+                    setTimeout(() => {
+                        btn.innerHTML = '<i class="fas fa-envelope mr-2"></i>Odeslat GDPR email';
+                        btn.disabled = false;
+                    }, 3000);
+                } else {
+                    throw new Error(data.error || 'Nepodařilo se odeslat email');
+                }
+            } catch (error) {
+                showToast(error.message, 'error');
+                btn.innerHTML = '<i class="fas fa-envelope mr-2"></i>Odeslat GDPR email';
+                btn.disabled = false;
+            }
+        }
+    </script>
 </body>
 </html>
