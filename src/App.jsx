@@ -387,6 +387,7 @@ function App() {
       // Volání auth API pro odhlášení
       await fetch('auth.php', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
         },

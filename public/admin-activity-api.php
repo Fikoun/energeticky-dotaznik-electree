@@ -13,6 +13,7 @@ error_reporting(0);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
+session_set_cookie_params(["path" => "/", "httponly" => true, "samesite" => "Lax"]);
 session_start();
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {

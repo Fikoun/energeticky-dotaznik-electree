@@ -20,8 +20,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 // Wrap everything in try-catch to guarantee JSON output
 try {
-    // Start session safely
+    // Start session safely with consistent cookie settings
     if (session_status() === PHP_SESSION_NONE) {
+        // Ensure session cookie is available across all paths
+        session_set_cookie_params([
+            'path' => '/',
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
         @session_start();
     }
 

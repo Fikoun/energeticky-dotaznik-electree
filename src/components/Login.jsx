@@ -18,6 +18,7 @@ const Login = ({ onLogin }) => {
       // Call auth API
       const response = await fetch('auth.php', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -248,7 +249,7 @@ const Login = ({ onLogin }) => {
                   onClick={async () => {
                     try {
                       console.log('=== GET DEBUG TEST ===');
-                      const response = await fetch('auth.php');
+                      const response = await fetch('auth.php', { credentials: 'same-origin' });
                       console.log('GET Status:', response.status);
                       console.log('GET Headers:', Object.fromEntries(response.headers));
                       const text = await response.text();
@@ -279,6 +280,7 @@ const Login = ({ onLogin }) => {
                       console.log('=== POST DEBUG TEST ===');
                       const response = await fetch('auth.php', {
                         method: 'POST',
+                        credentials: 'same-origin',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ action: 'debug' })
                       });
@@ -317,6 +319,7 @@ const Login = ({ onLogin }) => {
                     console.log('=== LOGIN TEST ===');
                     const response = await fetch('auth.php', {
                       method: 'POST',
+                      credentials: 'same-origin',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ 
                         action: 'login', 
