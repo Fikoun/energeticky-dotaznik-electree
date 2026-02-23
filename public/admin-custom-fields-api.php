@@ -149,23 +149,48 @@ try {
             
         case 'apply_auto_mapping':
             // Apply the auto-mapping to the database
+            // First detect actual Raynet field names, then fill gaps with suggested names
             validateCsrf($data);
             
+            // Step 1: Get existing mapping (preserve already-working mappings)
+            $existingMapping = getFieldMapping($pdo);
+            
+            // Step 2: Detect actual Raynet field names by matching labels
+            $detection = $customFields->detectMappingFromExistingFields();
+            $detectedMapping = $detection['mapping'] ?? [];
+            
+            // Step 3: Get the suggested defaults for any remaining unmapped fields
             $defaultMapping = RaynetCustomFields::generateDefaultMapping();
             
-            // Save using the standard saveFieldMapping function
-            saveFieldMapping($pdo, $defaultMapping);
+            // Step 4: Build final mapping:
+            //   - Start with suggested defaults (ef_* names)
+            //   - Override with existing DB mapping (may have real cf_* names)
+            //   - Override with freshly detected mapping (highest priority - actual Raynet names)
+            $finalMapping = array_merge($defaultMapping, $existingMapping, $detectedMapping);
+            
+            // Save the merged mapping
+            saveFieldMapping($pdo, $finalMapping);
             
             $logger->info(Logger::TYPE_RAYNET, "Applied auto-mapping configuration", [
-                'field_count' => count($defaultMapping)
+                'total_fields' => count($finalMapping),
+                'detected_from_raynet' => count($detectedMapping),
+                'preserved_existing' => count($existingMapping),
+                'default_suggested' => count($defaultMapping)
             ]);
             
             $result = [
                 'success' => true,
-                'message' => 'Auto-mapování bylo úspěšně aplikováno',
+                'message' => sprintf(
+                    'Auto-mapování aplikováno: %d polí celkem (%d detekováno z Raynet, %d zachováno stávajících)',
+                    count($finalMapping),
+                    count($detectedMapping),
+                    count($existingMapping)
+                ),
                 'data' => [
-                    'mapping' => $defaultMapping,
-                    'field_count' => count($defaultMapping)
+                    'mapping' => $finalMapping,
+                    'field_count' => count($finalMapping),
+                    'detected_count' => count($detectedMapping),
+                    'preserved_count' => count($existingMapping)
                 ]
             ];
             break;

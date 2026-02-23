@@ -33,6 +33,9 @@ try {
         // Send notification email to admin
         sendAdminNotification($form, $formData);
 
+        // Raynet is not triggered here; default to manual processing flag
+        $raynetSuccess = false;
+
         // Show success page
         showSuccessPage($form['id'], $raynetSuccess);
         exit;
@@ -62,17 +65,55 @@ function organizeDataBySteps($decoded_data) {
         7 => ['gridConnectionPlanned', 'powerIncreaseRequested', 'requestedPowerIncrease', 'requestedOutputIncrease', 'connectionApplicationBy', 'connectionApplication', 'hasConnectionApplication', 'connectionContractFile', 'connectionApplicationFile', 'willingToSignPowerOfAttorney', 'hasEnergeticSpecialist', 'specialistPosition', 'specialistName', 'specialistEmail', 'specialistPhone', 'energeticSpecialist', 'energeticSpecialistContact', 'proposedSteps', 'legislativeNotes', 'hasCapacityIncrease', 'capacityIncreaseDetails'],
         8 => ['electricityPriceVT', 'electricityPriceNT', 'distributionPriceVT', 'distributionPriceNT', 'systemServices', 'ote', 'billingFees', 'billingMethod', 'spotSurcharge', 'fixPrice', 'fixPercentage', 'spotPercentage', 'gradualFixPrice', 'gradualSpotSurcharge', 'billingDocuments', 'currentEnergyPrice', 'electricitySharing', 'sharingDetails', 'hasGas', 'hasGasConsumption', 'gasPrice', 'gasConsumption', 'gasUsage', 'heating', 'hotWater', 'hotWaterConsumption', 'technology', 'cooking', 'hasCogeneration', 'cogenerationDetails', 'cogenerationPhotos', 'heatingConsumption', 'coolingConsumption', 'steamConsumption', 'otherConsumption', 'agreements', 'timeline', 'urgency', 'additionalNotes']
     ];
-    
-    $organized_data = [];
+    // Build reverse lookup for quick step assignment
+    $field_to_step = [];
     foreach ($steps as $step_num => $fields) {
         foreach ($fields as $field) {
-            if (isset($decoded_data[$field])) {
-                $organized_data[$step_num][$field] = $decoded_data[$field];
-            }
+            $field_to_step[$field] = $step_num;
         }
     }
-    
-    return $organized_data;
+
+    // Initialize all steps to keep ordering stable
+    $organized_data = [1 => [], 2 => [], 3 => [], 4 => [], 5 => [], 6 => [], 7 => [], 8 => []];
+
+    // Heuristic buckets for any new/unmapped fields so we do not drop data
+    $heuristics = [
+        3 => '/consumption|distribution|measurement|curve/i',
+        4 => '/battery|backup|accumulation|energy|audit|priceOptimization/i',
+        5 => '/goal|priority|purpose/i',
+        6 => '/site|photo|visual|doc|plan|roof|infrastructure|space|access/i',
+        7 => '/grid|connection|power|specialist|proposed|legisl|capacity/i',
+        8 => '/price|billing|gas|cogeneration|agreement|timeline|urgency/i'
+    ];
+
+    foreach ($decoded_data as $key => $value) {
+        // Skip metadata keys that are not user inputs
+        if (in_array($key, ['stepNotes', 'uploadedFiles', 'user', 'formId', 'submittedAt', 'isDraft', 'tempFormId', 'status'], true)) {
+            continue;
+        }
+
+        $target_step = $field_to_step[$key] ?? null;
+
+        if ($target_step === null) {
+            foreach ($heuristics as $step_num => $pattern) {
+                if (preg_match($pattern, $key)) {
+                    $target_step = $step_num;
+                    break;
+                }
+            }
+        }
+
+        if ($target_step === null) {
+            $target_step = 1; // Fallback bucket so nothing gets dropped
+        }
+
+        $organized_data[$target_step][$key] = $value;
+    }
+
+    // Remove empty steps but keep keys intact
+    return array_filter($organized_data, function($fields) {
+        return !empty($fields);
+    });
 }
 
 // Názvy kroků

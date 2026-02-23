@@ -1700,9 +1700,14 @@ class RaynetCustomFields
         
         error_log("buildCustomFieldsPayload: Processing " . count($mapping) . " field mappings");
         error_log("buildCustomFieldsPayload: Form data keys: " . implode(', ', array_keys($flattenedData)));
+        error_log("buildCustomFieldsPayload: Mapping: " . json_encode($mapping));
+        
+        $skippedMissing = [];
+        $skippedEmpty = [];
         
         foreach ($mapping as $formField => $raynetField) {
             if (!isset($flattenedData[$formField])) {
+                $skippedMissing[] = $formField;
                 continue;
             }
             
@@ -1710,6 +1715,7 @@ class RaynetCustomFields
             
             // Skip empty values
             if ($value === '' || $value === null) {
+                $skippedEmpty[] = $formField;
                 continue;
             }
             
@@ -1725,6 +1731,12 @@ class RaynetCustomFields
             }
         }
         
+        if (!empty($skippedMissing)) {
+            error_log("buildCustomFieldsPayload: Skipped (not in form data): " . implode(', ', $skippedMissing));
+        }
+        if (!empty($skippedEmpty)) {
+            error_log("buildCustomFieldsPayload: Skipped (empty value): " . implode(', ', $skippedEmpty));
+        }
         error_log("buildCustomFieldsPayload: Built " . count($customFields) . " custom fields");
         
         return $customFields;
