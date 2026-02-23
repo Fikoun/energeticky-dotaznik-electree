@@ -21,6 +21,11 @@ RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
+# Route root-level PHP requests to public/ folder if file exists there
+# This allows /admin-dashboard.php to serve public/admin-dashboard.php
+RewriteCond %{DOCUMENT_ROOT}/public/%{REQUEST_URI} -f
+RewriteRule ^(.+\.php)$ public/$1 [L]
+
 # SPA routing - all other requests to index.html
 RewriteRule ^ index.html [L]
 
