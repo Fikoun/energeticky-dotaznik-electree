@@ -22,15 +22,16 @@ if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
     exit;
 }
 
+// Load dependencies (must be at file scope so `use` aliases are valid)
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/Raynet/autoload.php';
+
+use Raynet\RaynetApiClient;
+use Raynet\RaynetCompany;
+use Raynet\RaynetPerson;
+use Raynet\RaynetDuplicateChecker;
+
 try {
-    // Load dependencies
-    require_once __DIR__ . '/../config/database.php';
-    require_once __DIR__ . '/../includes/Raynet/autoload.php';
-    
-    use Raynet\RaynetApiClient;
-    use Raynet\RaynetCompany;
-    use Raynet\RaynetPerson;
-    
     $pdo = getDbConnection();
     
     // Parse request
@@ -123,11 +124,12 @@ function searchContactInRaynet($pdo)
         ], 10);
         
         foreach ($emailMatches as $person) {
+            $personData = $person->getData();
             $results['raynet_matches'][] = [
                 'match_type' => 'email',
                 'match_score' => 100,
-                'person' => $person,
-                'company' => findPersonCompany($client, $person['id'])
+                'person' => $personData,
+                'company' => findPersonCompany($client, $person->getId())
             ];
         }
     }
@@ -149,22 +151,20 @@ function searchContactInRaynet($pdo)
         if (!empty($nameFilters)) {
             $nameMatches = $personEntity->search($nameFilters, 10);
             
+            // Collect IDs already found by email to avoid duplicates
+            $foundIds = array_column(
+                array_column($results['raynet_matches'], 'person'),
+                'id'
+            );
+
             foreach ($nameMatches as $person) {
-                // Skip if already found by email
-                $alreadyFound = false;
-                foreach ($results['raynet_matches'] as $existing) {
-                    if ($existing['person']['id'] === $person['id']) {
-                        $alreadyFound = true;
-                        break;
-                    }
-                }
-                
-                if (!$alreadyFound) {
+                $personData = $person->getData();
+                if (!in_array($personData['id'] ?? null, $foundIds, true)) {
                     $results['raynet_matches'][] = [
                         'match_type' => 'name',
-                        'match_score' => calculateNameMatchScore($contactPerson, $person),
-                        'person' => $person,
-                        'company' => findPersonCompany($client, $person['id'])
+                        'match_score' => calculateNameMatchScore($contactPerson, $personData),
+                        'person' => $personData,
+                        'company' => findPersonCompany($client, $person->getId())
                     ];
                 }
             }
@@ -273,7 +273,62 @@ function confirmContactSync($pdo)
             break;
             
         case 'create':
-            // Create new records in Raynet
+            // ------------------------------------------------------------------
+            // Before creating, run duplicate detection to prevent duplicates.
+            // If a duplicate is found, return a 409 so the admin can choose to
+            // link to the existing record instead.
+            // Pass force_create = true in the request body to bypass this check.
+            // ------------------------------------------------------------------
+            $forceCreate = !empty($input['force_create']);
+
+            if (!$forceCreate) {
+                $checker = new RaynetDuplicateChecker($client);
+
+                // Extract normalised fields for duplicate lookup
+                $names = parseContactName($formData['contactPerson'] ?? '');
+                $companyExtId = $companyEntity->generateExtId($formId);
+                $personExtId  = $personEntity->generateExtId($formId);
+
+                $dupPerson  = $checker->findExistingPerson($personExtId, [
+                    'email'     => $formData['email'] ?? '',
+                    'phone'     => $formData['phone'] ?? '',
+                    'firstName' => $names['firstName'],
+                    'lastName'  => $names['lastName'],
+                ]);
+
+                $dupCompany = $checker->findExistingCompany($companyExtId, [
+                    'ico'       => $formData['ico'] ?? '',
+                    'taxNumber' => $formData['dic'] ?? '',
+                    'name'      => $formData['companyName'] ?? '',
+                ]);
+
+                if ($dupPerson || $dupCompany) {
+                    ob_end_clean();
+                    http_response_code(409);
+                    echo json_encode([
+                        'success'    => false,
+                        'duplicate'  => true,
+                        'error'      => 'Potenciální duplikát nalezen. Použijte režim \"Propojit\" pro existující záznamy, nebo pošlete force_create=true pro vynucení vytvoření.',
+                        'found' => [
+                            'person'  => $dupPerson  ? [
+                                'id'         => $dupPerson['id'],
+                                'matched_by' => $dupPerson['matched_by'],
+                                'name'       => trim(($dupPerson['data']['firstName'] ?? '') . ' ' . ($dupPerson['data']['lastName'] ?? '')),
+                                'email'      => $dupPerson['data']['contactInfo']['email'] ?? null,
+                            ] : null,
+                            'company' => $dupCompany ? [
+                                'id'         => $dupCompany['id'],
+                                'matched_by' => $dupCompany['matched_by'],
+                                'name'       => $dupCompany['data']['name'] ?? null,
+                                'ico'        => $dupCompany['data']['regNumber'] ?? null,
+                            ] : null,
+                        ]
+                    ]);
+                    exit;
+                }
+            }
+
+            // No duplicate (or force_create=true) — create new records
             $companyEntity->fromFormData($formData, $formId);
             $companyEntity->save();
             $syncedCompanyId = $companyEntity->getId();

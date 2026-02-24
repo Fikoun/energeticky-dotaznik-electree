@@ -135,87 +135,106 @@ class RaynetCompany extends RaynetEntity
     }
     
     /**
-     * Find existing company by IČO or external ID
+     * Find existing company by external ID or IČO.
+     *
+     * Each lookup is isolated; a failure in one strategy does not prevent
+     * the next from running (important when extId is unknown in Raynet).
      */
     public function findExisting(string $extId, ?string $ico = null): ?self
     {
-        // First try by external ID
-        $byExtId = $this->findByExtId($extId);
-        if ($byExtId) {
-            return $byExtId;
+        // Strategy 1: external ID
+        try {
+            $byExtId = $this->findByExtId($extId);
+            if ($byExtId) {
+                return $byExtId;
+            }
+        } catch (\Throwable $e) {
+            error_log("RaynetCompany::findExisting – extId lookup failed: " . $e->getMessage());
         }
-        
-        // Then try by IČO if provided
+
+        // Strategy 2: IČO
         if ($ico) {
-            return $this->findByIco($ico);
+            try {
+                $byIco = $this->findByIco($ico);
+                if ($byIco) {
+                    return $byIco;
+                }
+            } catch (\Throwable $e) {
+                error_log("RaynetCompany::findExisting – IČO lookup failed: " . $e->getMessage());
+            }
         }
-        
+
         return null;
     }
     
     /**
-     * Smart sync - finds by extId or IČO, updates or creates
+     * Smart sync – find by configurable strategies, then update or create.
+     *
+     * Pass a pre-configured $checker to override the default strategies.
      */
-    public function smartSync(array $formData, string|int $formId): self
+    public function smartSync(array $formData, string|int $formId, ?RaynetDuplicateChecker $checker = null): self
     {
         $this->fromFormData($formData, $formId);
-        
-        $ico = $this->data['regNumber'] ?? null;
-        $extId = $this->generateExtId($formId);
-        
-        // Try to find existing
-        $existing = $this->findExisting($extId, $ico);
-        
+
+        $extId  = $this->generateExtId($formId);
+        $data   = $this->parseFormData($formData);
+
+        $checker = $checker ?? new RaynetDuplicateChecker($this->client);
+
+        $existing = $checker->findExistingCompany($extId, [
+            'ico'       => $data['ico'] ?? ($this->data['regNumber'] ?? null),
+            'taxNumber' => $data['dic'] ?? ($this->data['taxNumber'] ?? null),
+            'name'      => $data['companyName'] ?? ($this->data['name'] ?? null),
+        ]);
+
         if ($existing) {
-            // Update existing company
-            $this->id = $existing->getId();
-            
-            // Merge data - keep existing ext ID if different
-            if ($existing->getExtId() && $existing->getExtId() !== $extId) {
-                // Company was found by IČO but has different extId
-                // Don't overwrite extId to avoid breaking other links
+            $this->id = $existing['id'];
+            // Don't overwrite extId when matched by ICO/name (company may be linked to other forms)
+            if ($existing['matched_by'] !== 'extId') {
                 unset($this->data['extId']);
             }
-            
+            error_log("Raynet: Updated existing company {$this->id} (matched by '{$existing['matched_by']}').");
             return $this->update();
         }
-        
-        // Create new
+
+        error_log("Raynet: Created new company.");
         return $this->create();
     }
     
     /**
-     * Smart sync with custom fields - finds by extId or IČO, updates or creates with custom fields
-     * 
-     * @param array $formData Parsed form data
-     * @param string|int $formId Form ID
-     * @param array $customFields Custom fields payload
+     * Smart sync with custom fields.
+     *
+     * Pass a pre-configured $checker to override the default strategies.
      */
-    public function smartSyncWithCustomFields(array $formData, string|int $formId, array $customFields = []): self
-    {
+    public function smartSyncWithCustomFields(
+        array $formData,
+        string|int $formId,
+        array $customFields = [],
+        ?RaynetDuplicateChecker $checker = null
+    ): self {
         $this->fromFormData($formData, $formId, $customFields);
-        
-        $ico = $this->data['regNumber'] ?? null;
+
         $extId = $this->generateExtId($formId);
-        
-        // Try to find existing
-        $existing = $this->findExisting($extId, $ico);
-        
+        $data  = $this->parseFormData($formData);
+
+        $checker = $checker ?? new RaynetDuplicateChecker($this->client);
+
+        $existing = $checker->findExistingCompany($extId, [
+            'ico'       => $data['ico'] ?? ($this->data['regNumber'] ?? null),
+            'taxNumber' => $data['dic'] ?? ($this->data['taxNumber'] ?? null),
+            'name'      => $data['companyName'] ?? ($this->data['name'] ?? null),
+        ]);
+
         if ($existing) {
-            // Update existing company
-            $this->id = $existing->getId();
-            
-            // Merge data - keep existing ext ID if different
-            if ($existing->getExtId() && $existing->getExtId() !== $extId) {
-                // Company was found by IČO but has different extId
-                // Don't overwrite extId to avoid breaking other links
+            $this->id = $existing['id'];
+            if ($existing['matched_by'] !== 'extId') {
                 unset($this->data['extId']);
             }
-            
+            error_log("Raynet: Updated existing company {$this->id} (matched by '{$existing['matched_by']}').");
             return $this->update();
         }
-        
-        // Create new
+
+        error_log("Raynet: Created new company.");
         return $this->create();
     }
     

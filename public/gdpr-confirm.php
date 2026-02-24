@@ -469,6 +469,27 @@ function formatFileUploads($key, $value) {
             </div>';
 }
 
+function isAssocArray(array $arr): bool {
+    if (empty($arr)) return false;
+    return array_keys($arr) !== range(0, count($arr) - 1);
+}
+
+// Normalizes a checkbox-group value stored as either:
+//   assoc array: {key: 1/true, key2: ""/false, ...}  →  returns selected keys
+//   indexed array: ["key1", "key2", "", ...]          →  returns non-empty values
+function normalizeCheckboxGroup(array $value): array {
+    if (isAssocArray($value)) {
+        $selected = [];
+        foreach ($value as $k => $v) {
+            if (!empty($k) && ($v === 1 || $v === '1' || $v === true || $v === 'true')) {
+                $selected[] = (string)$k;
+            }
+        }
+        return $selected;
+    }
+    return array_values(array_filter($value, fn($v) => $v !== '' && $v !== null && $v !== false));
+}
+
 function formatFieldValue($key, $value) {
     if (is_null($value) || $value === '' || $value === false || (is_array($value) && empty($value))) {
         return '<span style="color: #999; font-style: italic;">Nevyplněno</span>';
@@ -521,18 +542,102 @@ function formatFieldValue($key, $value) {
         return $pattern_html;
     }
     
+    // customerType checkbox group
+    if ($key === 'customerType' && is_array($value)) {
+        $ct_labels = [
+            'industrial'  => '🏭 Průmysl',
+            'commercial'  => '🏢 Komerční objekt',
+            'services'    => '🚚 Služby / Logistika',
+            'agriculture' => '🌾 Zemědělství',
+            'public'      => '🏛️ Veřejný sektor',
+        ];
+        $items = normalizeCheckboxGroup($value);
+        if (empty($items)) return '<span style="color: #999; font-style: italic;">Nevyplněno</span>';
+        $html = '';
+        foreach ($items as $item) {
+            $label = $ct_labels[$item] ?? $item;
+            $html .= '<div style="display: inline-block; background: #e8f5e8; padding: 5px 12px; border-radius: 5px; margin: 3px; color: #155724; font-weight: 500;">' . htmlspecialchars($label) . '</div>';
+        }
+        return '<div>' . $html . '</div>';
+    }
+
+    // goals checkbox group
+    if ($key === 'goals' && is_array($value)) {
+        $goal_labels = [
+            'fve-overflow'        => '⚡ Úspora z přetoků z FVE',
+            'peak-shaving'        => '📊 Posun spotřeby (peak shaving)',
+            'backup-power'        => '🔋 Záložní napájení',
+            'grid-services'       => '🔌 Služby pro síť',
+            'cost-optimization'   => '💰 Optimalizace nákladů na elektřinu',
+            'environmental'       => '🌿 Ekologický přínos',
+            'machine-support'     => '⚙️ Podpora výkonu strojů',
+            'energyindependence'  => 'Energetická nezávislost',
+            'costsaving'          => 'Úspora nákladů',
+            'backuppower'         => 'Záložní napájení',
+            'peakshaving'         => 'Peak shaving',
+            'gridstabilization'   => 'Stabilizace sítě',
+            'environmentalbenefit'=> 'Ekologický přínos',
+        ];
+        $items = normalizeCheckboxGroup($value);
+        if (empty($items)) return '<span style="color: #999; font-style: italic;">Nevyplněno</span>';
+        $html = '';
+        foreach ($items as $item) {
+            $label = $goal_labels[$item] ?? $item;
+            $html .= '<div style="padding: 8px; margin: 5px 0; background: #e8f5e8; border-left: 4px solid #28a745; border-radius: 3px; font-weight: 500;">' . htmlspecialchars($label) . '</div>';
+        }
+        return '<div style="background: #f8f9fa; border-radius: 8px; padding: 10px;">' . $html . '</div>';
+    }
+
+    // documentationTypes checkbox group
+    if ($key === 'documentationTypes' && is_array($value)) {
+        $doc_labels = [
+            'sitePlan'           => 'Situační plán areálu',
+            'electricalPlan'     => 'Elektrická dokumentace',
+            'buildingPlan'       => 'Půdorysy budov',
+            'otherDocumentation' => 'Jiná dokumentace',
+        ];
+        $items = normalizeCheckboxGroup($value);
+        if (empty($items)) return '<span style="color: #999; font-style: italic;">Nevyplněno</span>';
+        $html = '';
+        foreach ($items as $item) {
+            $label = $doc_labels[$item] ?? $item;
+            $html .= '<li style="margin: 5px 0;">' . htmlspecialchars($label) . '</li>';
+        }
+        return '<ul style="list-style: disc; padding-left: 20px; margin: 5px 0;">' . $html . '</ul>';
+    }
+
+    // gasUsage checkbox group
+    if ($key === 'gasUsage' && is_array($value)) {
+        $gas_labels = [
+            'heating'    => 'Vytápění',
+            'hotWater'   => 'Ohřev vody',
+            'technology' => 'Technologie/výroba',
+            'cooking'    => 'Vaření',
+        ];
+        $items = normalizeCheckboxGroup($value);
+        if (empty($items)) return '<span style="color: #999; font-style: italic;">Nevyplněno</span>';
+        $html = '';
+        foreach ($items as $item) {
+            $label = $gas_labels[$item] ?? $item;
+            $html .= '<li style="margin: 5px 0;">' . htmlspecialchars($label) . '</li>';
+        }
+        return '<ul style="list-style: disc; padding-left: 20px; margin: 5px 0;">' . $html . '</ul>';
+    }
+
     // Proposed steps
     if ($key === 'proposedSteps' && is_array($value) && !empty($value)) {
-        $steps_html = '<div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 10px 0;">';
         $step_labels = [
             'connectionApplication' => '📄 Žádost o připojení k distribuční síti',
-            'powerIncrease' => '⚡ Navýšení rezervovaného příkonu',
-            'projectDocumentation' => '📋 Zpracování projektové dokumentace',
-            'permitProcess' => '🏛️ Proces stavebního/provozního povolení',
-            'gridConnection' => '🔌 Připojení k distribuční síti',
-            'subsidyApplication' => '💰 Žádost o dotace/podporu',
+            'powerIncrease'         => '⚡ Navýšení rezervovaného příkonu',
+            'projectDocumentation'  => '📋 Zpracování projektové dokumentace',
+            'permitProcess'         => '🏛️ Proces stavebního/provozního povolení',
+            'gridConnection'        => '🔌 Připojení k distribuční síti',
+            'subsidyApplication'    => '💰 Žádost o dotace/podporu',
         ];
-        foreach ($value as $step) {
+        $normalized_steps = normalizeCheckboxGroup($value);
+        if (empty($normalized_steps)) return '<span style="color: #999; font-style: italic;">Nevyplněno</span>';
+        $steps_html = '<div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 10px 0;">';
+        foreach ($normalized_steps as $step) {
             $label = $step_labels[$step] ?? $step;
             $steps_html .= '<div style="padding: 8px; margin: 5px 0; background: white; border-left: 4px solid #ffc107; border-radius: 3px;">' . htmlspecialchars($label) . '</div>';
         }
@@ -542,15 +647,17 @@ function formatFieldValue($key, $value) {
     
     // Agreements
     if ($key === 'agreements' && is_array($value) && !empty($value)) {
-        $agreements_html = '<div style="background: #f3e5f5; padding: 15px; border-radius: 8px; margin: 10px 0;">';
         $agreement_labels = [
-            'connectionContract' => '📝 Smlouva o připojení k DS',
-            'powerOfAttorney' => '📜 Plná moc pro jednání s DS',
-            'landLease' => '🏞️ Smlouva o pronájmu pozemku',
-            'gridAccess' => '🔌 Smlouva o přístupu do sítě',
+            'connectionContract'  => '📝 Smlouva o připojení k DS',
+            'powerOfAttorney'     => '📜 Plná moc pro jednání s DS',
+            'landLease'           => '🏞️ Smlouva o pronájmu pozemku',
+            'gridAccess'          => '🔌 Smlouva o přístupu do sítě',
             'maintenanceContract' => '🔧 Servisní smlouva',
         ];
-        foreach ($value as $agreement) {
+        $normalized_agreements = normalizeCheckboxGroup($value);
+        if (empty($normalized_agreements)) return '<span style="color: #999; font-style: italic;">Nevyplněno</span>';
+        $agreements_html = '<div style="background: #f3e5f5; padding: 15px; border-radius: 8px; margin: 10px 0;">';
+        foreach ($normalized_agreements as $agreement) {
             $label = $agreement_labels[$agreement] ?? $agreement;
             $agreements_html .= '<div style="padding: 8px; margin: 5px 0; background: white; border-left: 4px solid #9c27b0; border-radius: 3px;">' . htmlspecialchars($label) . '</div>';
         }
@@ -615,12 +722,12 @@ function formatFieldValue($key, $value) {
         return '<div style="background: #e8f5e8; padding: 8px 12px; border-radius: 5px; color: ' . $color . '; font-weight: 500; display: inline-block;">' . htmlspecialchars($translated) . '</div>';
     }
     
-    // Arrays
+    // Generic arrays — normalize (handles both assoc checkbox groups and indexed lists)
     if (is_array($value)) {
-        $items = array_map('htmlspecialchars', $value);
-        return '<ul style="list-style: disc; padding-left: 20px; margin: 5px 0;">' . 
-               implode('', array_map(fn($item) => '<li style="margin: 3px 0;">' . $item . '</li>', $items)) . 
-               '</ul>';
+        $items = normalizeCheckboxGroup($value);
+        if (empty($items)) return '<span style="color: #999; font-style: italic;">Nevyplněno</span>';
+        $items_html = array_map(fn($item) => '<li style="margin: 3px 0;">' . htmlspecialchars($translations[strtolower((string)$item)] ?? (string)$item) . '</li>', $items);
+        return '<ul style="list-style: disc; padding-left: 20px; margin: 5px 0;">' . implode('', $items_html) . '</ul>';
     }
     
     // Phone numbers

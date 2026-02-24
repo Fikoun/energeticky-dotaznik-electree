@@ -1057,8 +1057,8 @@ header('Content-Type: text/html; charset=utf-8');
             `;
         }
 
-        async function confirmRaynetSync(formId, personId, companyId, mode) {
-            log.info('Confirming Raynet sync', { formId, personId, companyId, mode });
+        async function confirmRaynetSync(formId, personId, companyId, mode, forceCreate = false) {
+            log.info('Confirming Raynet sync', { formId, personId, companyId, mode, forceCreate });
             
             const content = document.getElementById('raynetSyncContent');
             content.innerHTML = `
@@ -1076,12 +1076,73 @@ header('Content-Type: text/html; charset=utf-8');
                         form_id: formId,
                         person_id: personId,
                         company_id: companyId,
-                        update_mode: mode
+                        update_mode: mode,
+                        force_create: forceCreate
                     })
                 });
                 
                 const result = await response.json();
-                
+
+                // ── 409 Duplicate detected ─────────────────────────────────────
+                if (response.status === 409 && result.duplicate) {
+                    const found = result.found || {};
+                    const personRow = found.person
+                        ? `<tr><td class="py-1 pr-4 text-gray-500">Osoba</td>
+                               <td class="py-1 font-medium">${found.person.name || '-'}</td>
+                               <td class="py-1 text-gray-400 text-xs">${found.person.email || ''}</td>
+                               <td class="py-1 text-xs">
+                                 <span class="bg-amber-100 text-amber-800 px-1 rounded">ID ${found.person.id} · via ${found.person.matched_by}</span>
+                               </td></tr>`
+                        : '';
+                    const companyRow = found.company
+                        ? `<tr><td class="py-1 pr-4 text-gray-500">Firma</td>
+                               <td class="py-1 font-medium">${found.company.name || '-'}</td>
+                               <td class="py-1 text-gray-400 text-xs">${found.company.ico ? 'IČO ' + found.company.ico : ''}</td>
+                               <td class="py-1 text-xs">
+                                 <span class="bg-amber-100 text-amber-800 px-1 rounded">ID ${found.company.id} · via ${found.company.matched_by}</span>
+                               </td></tr>`
+                        : '';
+
+                    // Build link-to-existing button params
+                    const linkPersonId  = found.person?.id  ?? 'null';
+                    const linkCompanyId = found.company?.id ?? 'null';
+
+                    content.innerHTML = `
+                        <div class="py-6 px-2">
+                            <div class="flex items-start gap-3 mb-4">
+                                <div class="text-amber-500 text-3xl">⚠️</div>
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-900">Potenciální duplikát nalezen</h3>
+                                    <p class="text-sm text-gray-500 mt-1">${result.error}</p>
+                                </div>
+                            </div>
+                            <table class="w-full text-sm mb-6">
+                                <tbody>${personRow}${companyRow}</tbody>
+                            </table>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="confirmRaynetSync(${formId}, ${linkPersonId}, ${linkCompanyId}, 'link')"
+                                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
+                                    🔗 Propojit s nalezeným
+                                </button>
+                                <button onclick="confirmRaynetSync(${formId}, ${linkPersonId}, ${linkCompanyId}, 'update')"
+                                        class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm">
+                                    ✏️ Propojit a aktualizovat
+                                </button>
+                                <button onclick="confirmRaynetSync(${formId}, null, null, 'create', true)"
+                                        class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm">
+                                    ⚡ Vytvořit duplicitně (force)
+                                </button>
+                                <button onclick="hideRaynetSyncModal()"
+                                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm">
+                                    Zrušit
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+                // ─────────────────────────────────────────────────────────────
+
                 if (!result.success) {
                     throw new Error(result.error || 'Synchronizace selhala');
                 }

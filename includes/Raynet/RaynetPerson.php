@@ -122,29 +122,58 @@ class RaynetPerson extends RaynetEntity
     }
     
     /**
-     * Smart sync with company linking
+     * Find person by email address (exact match).
      */
-    public function smartSync(array $formData, string|int $formId, ?int $companyId = null, string $position = 'kontaktní osoba'): self
+    public function findByEmail(string $email): ?self
     {
+        $results = $this->search(['contactInfo.email' => ['EQ' => $email]], 1);
+        return $results[0] ?? null;
+    }
+
+    /**
+     * Smart sync with company linking.
+     *
+     * Uses RaynetDuplicateChecker to look for an existing person via configurable
+     * strategies (extId → email → phone → name) before creating a new record.
+     * Pass a pre-configured $checker to override the default strategy set.
+     */
+    public function smartSync(
+        array $formData,
+        string|int $formId,
+        ?int $companyId = null,
+        string $position = 'kontaktní osoba',
+        ?RaynetDuplicateChecker $checker = null
+    ): self {
         $this->fromFormData($formData, $formId);
-        
-        $extId = $this->generateExtId($formId);
-        
-        // Try to find existing
-        $existing = $this->findByExtId($extId);
-        
+
+        $extId   = $this->generateExtId($formId);
+        $data    = $this->parseFormData($formData);
+        $names   = $this->parseContactName($data['contactPerson'] ?? '');
+
+        // Build duplicate checker with default strategies if none provided
+        $checker = $checker ?? new RaynetDuplicateChecker($this->client);
+
+        $existing = $checker->findExistingPerson($extId, [
+            'email'     => $data['email'] ?? '',
+            'phone'     => $data['phone'] ?? '',
+            'firstName' => $names['firstName'],
+            'lastName'  => $names['lastName'],
+        ]);
+
         if ($existing) {
-            $this->id = $existing->getId();
+            $this->id = $existing['id'];
             $this->update();
+            error_log("Raynet: Updated existing person {$this->id} (matched by '{$existing['matched_by']}').");
         } else {
             $this->create();
+            error_log("Raynet: Created new person {$this->id}.");
         }
-        
+
         // Link to company if provided
         if ($companyId && !$this->isLinkedToCompany($companyId)) {
             $this->linkToCompany($companyId, $position);
         }
-        
+
         return $this;
     }
     
@@ -258,22 +287,32 @@ class RaynetPerson extends RaynetEntity
      * @return self
      */
     public function syncAdditionalContact(
-        array $contactData, 
-        string|int $formId, 
+        array $contactData,
+        string|int $formId,
         int $contactIndex,
-        ?int $companyId = null
+        ?int $companyId = null,
+        ?RaynetDuplicateChecker $checker = null
     ): self {
         $this->fromAdditionalContact($contactData, $formId, $contactIndex);
-        
-        $extId = $this->extId;
-        
-        // Try to find existing
-        $existing = $this->findByExtId($extId);
-        
+
+        $extId   = $this->extId;
+        $names   = $this->parseContactName($contactData['name'] ?? '');
+
+        // Duplicate check: extId first, then email if available
+        $checker = $checker ?? (new RaynetDuplicateChecker($this->client))
+            ->configurePersonStrategies(['extId' => true, 'email' => true, 'phone' => false, 'name' => false]);
+
+        $existing = $checker->findExistingPerson($extId, [
+            'email'     => $contactData['email'] ?? '',
+            'phone'     => $contactData['phone'] ?? '',
+            'firstName' => $names['firstName'],
+            'lastName'  => $names['lastName'],
+        ]);
+
         if ($existing) {
-            $this->id = $existing->getId();
+            $this->id = $existing['id'];
             $this->update();
-            error_log("Raynet: Updated additional contact {$contactIndex}: {$this->id}");
+            error_log("Raynet: Updated additional contact {$contactIndex} (matched by '{$existing['matched_by']}'): {$this->id}");
         } else {
             $this->create();
             error_log("Raynet: Created additional contact {$contactIndex}: {$this->id}");
