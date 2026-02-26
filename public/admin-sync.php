@@ -226,6 +226,9 @@ header('Content-Type: text/html; charset=utf-8');
                         <button onclick="switchTab('logs')" id="tab-logs" class="px-6 py-4 text-sm font-medium text-gray-500 hover:text-gray-700">
                             📋 Logy
                         </button>
+                        <button onclick="switchTab('tester')" id="tab-tester" class="px-6 py-4 text-sm font-medium text-gray-500 hover:text-gray-700">
+                            🔬 Tester polí
+                        </button>
                     </nav>
                 </div>
 
@@ -257,6 +260,22 @@ header('Content-Type: text/html; charset=utf-8');
                             </button>
                         </div>
                         
+                        <!-- Tester tab filters -->
+                        <div id="filters-tester" class="hidden flex flex-wrap gap-4 items-center">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 mb-1">Form ID (synchronizovaný formulář)</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="tester-form-id" placeholder="ID formuláře..."
+                                           class="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 w-72"
+                                           onkeypress="if(event.key==='Enter') runFieldComparison()">
+                                    <button onclick="runFieldComparison()" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md text-sm">
+                                        🔬 Porovnat
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="text-xs text-gray-400 mt-5">Vyberte synchronizovaný formulář z tabulky nebo zadejte ID přímo</div>
+                        </div>
+
                         <!-- Logs tab filters -->
                         <div id="filters-logs" class="hidden flex flex-wrap gap-4 items-center">
                             <div>
@@ -333,6 +352,18 @@ header('Content-Type: text/html; charset=utf-8');
                     </div>
                 </div>
                 
+                <!-- ══════════════════ TESTER TAB ══════════════════ -->
+                <div id="tab-content-tester" class="hidden">
+                    <div id="tester-result" class="p-6">
+                        <div class="text-center py-12 text-gray-400">
+                            <div class="text-5xl mb-3">🔬</div>
+                            <p class="text-lg font-medium text-gray-500">Porovnání polí</p>
+                            <p class="text-sm mt-1">Zadejte ID synchronizovaného formuláře a klikněte na Porovnat.</p>
+                            <p class="text-sm text-gray-400 mt-1">Ukazuje co EnergyForms odešle vs. co je reálně v Raynet.</p>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="tab-content-logs" class="hidden">
                     <div id="logs-table" class="overflow-x-auto">
                         <div class="animate-pulse p-6">
@@ -681,8 +712,9 @@ header('Content-Type: text/html; charset=utf-8');
                                     ${form.synced_at_formatted || '-'}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <div class="flex items-center justify-end gap-2 flex-wrap">
                                     ${form.sync_status.status === 'error' ? `
-                                        <button onclick="retrySingleForm('${form.id}')" class="text-primary-600 hover:text-primary-900 mr-3">
+                                        <button onclick="retrySingleForm('${form.id}')" class="text-primary-600 hover:text-primary-900">
                                             🔄 Znovu
                                         </button>
                                         <button onclick="clearError('${form.id}')" class="text-gray-500 hover:text-gray-700">
@@ -697,6 +729,13 @@ header('Content-Type: text/html; charset=utf-8');
                                             🔄 Přesync
                                         </button>
                                     `}
+                                    ${form.raynet_company_id ? `
+                                        <button onclick="runFieldComparison('${form.id}')"
+                                                class="text-purple-600 hover:text-purple-800 text-xs px-2 py-1 border border-purple-200 rounded" title="Porovnat pole s Raynet">
+                                            🔬 Tester
+                                        </button>
+                                    ` : ''}
+                                    </div>
                                 </td>
                             </tr>
                         `).join('')}
@@ -1112,24 +1151,20 @@ header('Content-Type: text/html; charset=utf-8');
         // Tab switching
         function switchTab(tab) {
             currentTab = tab;
+            const tabs    = ['local', 'raynet', 'logs', 'tester'];
             
             // Update tab buttons
-            document.getElementById('tab-local').classList.toggle('tab-active', tab === 'local');
-            document.getElementById('tab-local').classList.toggle('text-gray-500', tab !== 'local');
-            document.getElementById('tab-raynet').classList.toggle('tab-active', tab === 'raynet');
-            document.getElementById('tab-raynet').classList.toggle('text-gray-500', tab !== 'raynet');
-            document.getElementById('tab-logs').classList.toggle('tab-active', tab === 'logs');
-            document.getElementById('tab-logs').classList.toggle('text-gray-500', tab !== 'logs');
+            tabs.forEach(t => {
+                const btn = document.getElementById('tab-' + t);
+                btn.classList.toggle('tab-active',  t === tab);
+                btn.classList.toggle('text-gray-500', t !== tab);
+            });
             
-            // Show/hide content
-            document.getElementById('tab-content-local').classList.toggle('hidden', tab !== 'local');
-            document.getElementById('tab-content-raynet').classList.toggle('hidden', tab !== 'raynet');
-            document.getElementById('tab-content-logs').classList.toggle('hidden', tab !== 'logs');
-            
-            // Show/hide filters
-            document.getElementById('filters-local').classList.toggle('hidden', tab !== 'local');
-            document.getElementById('filters-raynet').classList.toggle('hidden', tab !== 'raynet');
-            document.getElementById('filters-logs').classList.toggle('hidden', tab !== 'logs');
+            // Show/hide content & filters
+            tabs.forEach(t => {
+                document.getElementById('tab-content-' + t).classList.toggle('hidden', t !== tab);
+                document.getElementById('filters-' + t).classList.toggle('hidden', t !== tab);
+            });
             
             // Load data for tab
             if (tab === 'logs') {
@@ -1716,6 +1751,176 @@ header('Content-Type: text/html; charset=utf-8');
             }, 5000);
         }
 
+        // ══════════════════════════════════════════════════════════════════
+        // 🔬 FIELD COMPARISON TESTER
+        // ══════════════════════════════════════════════════════════════════
+
+        /**
+         * Called when admin clicks 🔬 Porovnat, OR from the action button in the forms table.
+         */
+        async function runFieldComparison(formId = null) {
+            const inputEl = document.getElementById('tester-form-id');
+            const id = formId || inputEl.value.trim();
+            if (!id) { showToast('Zadejte ID formuláře', 'error'); return; }
+
+            // Pre-fill input & switch to tester tab
+            if (formId) {
+                inputEl.value = formId;
+                switchTab('tester');
+            }
+
+            const container = document.getElementById('tester-result');
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-16">
+                    <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mb-4"></div>
+                    <p class="text-gray-500 text-sm">Načítám data z Raynet...</p>
+                </div>`;
+
+            try {
+                const data = await apiCall({ action: 'field_comparison', form_id: id });
+                if (!data.success) throw new Error(data.error);
+                renderComparisonResult(container, data.data);
+            } catch (err) {
+                log.error('Field comparison failed', err);
+                container.innerHTML = `
+                    <div class="text-center py-12">
+                        <div class="text-red-400 text-5xl mb-4">⚠️</div>
+                        <h3 class="text-lg font-medium text-gray-800 mb-2">Chyba při načítání</h3>
+                        <p class="text-sm text-gray-500">${escapeHtml(err.message)}</p>
+                    </div>`;
+            }
+        }
+
+        function renderComparisonResult(container, data) {
+            const meta    = data.meta;
+            const summary = data.summary;
+            const linked  = meta.raynet_linked;
+
+            const statusBadge = (s) => {
+                switch (s) {
+                    case 'match':    return '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-green-100 text-green-800">✓ Shoda</span>';
+                    case 'mismatch': return '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-red-100 text-red-800">✗ Rozdíl</span>';
+                    case 'missing':  return '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-amber-100 text-amber-800">⚠ Chybí</span>';
+                    case 'extra':    return '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-blue-100 text-blue-800">ℹ Extra</span>';
+                    default:         return '<span class="inline-block px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-500">–</span>';
+                }
+            };
+
+            const rowClass = (s) => {
+                switch (s) {
+                    case 'mismatch': return 'bg-red-50 border-l-4 border-red-400';
+                    case 'missing':  return 'bg-amber-50 border-l-4 border-amber-400';
+                    case 'match':    return 'bg-green-50';
+                    case 'extra':    return 'bg-blue-50';
+                    default:         return 'bg-white';
+                }
+            };
+
+            const buildTable = (rows, title) => {
+                if (!rows || rows.length === 0) return '';
+                const TABLE_ROWS = rows.map(r => `
+                    <tr class="${rowClass(r.status)} hover:brightness-95 transition-all">
+                        <td class="px-4 py-2.5 text-xs font-medium text-gray-700 whitespace-nowrap w-44">${escapeHtml(r.label)}</td>
+                        <td class="px-4 py-2.5 text-xs text-gray-400 font-mono whitespace-nowrap w-52">${escapeHtml(r.key)}</td>
+                        <td class="px-4 py-2.5 text-sm text-gray-900 max-w-xs">
+                            <div class="truncate" title="${escapeHtml(r.local_value ?? '')}">${
+                                r.local_value !== null
+                                    ? `<span class="text-blue-800 font-medium">${escapeHtml(r.local_value)}</span>`
+                                    : '<span class="text-gray-300 italic">–</span>'
+                            }</div>
+                        </td>
+                        <td class="px-4 py-2.5 text-sm text-gray-900 max-w-xs">
+                            <div class="truncate" title="${escapeHtml(r.raynet_value ?? '')}">${
+                                r.raynet_value !== null
+                                    ? `<span class="${r.status === 'mismatch' ? 'text-red-700 font-semibold' : 'text-gray-800'}">${escapeHtml(r.raynet_value)}</span>`
+                                    : '<span class="text-gray-300 italic">–</span>'
+                            }</div>
+                        </td>
+                        <td class="px-4 py-2.5 text-center">${statusBadge(r.status)}</td>
+                    </tr>`).join('');
+
+                return `
+                    <div class="mb-8">
+                        <h4 class="text-base font-semibold text-gray-800 mb-2">${title}</h4>
+                        <div class="overflow-x-auto rounded-lg border border-gray-200">
+                            <table class="min-w-full text-sm">
+                                <thead class="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase w-44">Pole</th>
+                                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase w-52">Klíč (API)</th>
+                                        <th class="px-4 py-2 text-left text-xs font-bold text-blue-600 uppercase">📤 Odesíláme (local)</th>
+                                        <th class="px-4 py-2 text-left text-xs font-bold text-purple-600 uppercase">☁️ V Raynet (live)</th>
+                                        <th class="px-4 py-2 text-center text-xs font-bold text-gray-500 uppercase">Stav</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">${TABLE_ROWS}</tbody>
+                            </table>
+                        </div>
+                    </div>`;
+            };
+
+            const summaryPill = (count, label, color) =>
+                `<span class="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${color}">${count} ${label}</span>`;
+
+            const raynetUrl = meta.raynet_company_id
+                ? `https://app.raynet.cz/electree/?view=DetailView&en=Company&ei=${meta.raynet_company_id}`
+                : null;
+
+            container.innerHTML = `
+                <!-- Header -->
+                <div class="px-6 pt-6 pb-4 border-b border-gray-200">
+                    <div class="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900">🔬 Výsledek porovnání polí</h3>
+                            <p class="text-sm text-gray-500 mt-0.5">
+                                Formulář <strong>#${escapeHtml(String(meta.form_id))}</strong> &mdash;
+                                ${escapeHtml(meta.company_name || '?')}
+                                ${meta.contact_person ? '&bull; ' + escapeHtml(meta.contact_person) : ''}
+                            </p>
+                            ${meta.fetch_error ? `<p class="text-xs text-amber-600 mt-1">⚠️ ${escapeHtml(meta.fetch_error)}</p>` : ''}
+                        </div>
+                        <div class="flex flex-wrap gap-2 items-center">
+                            ${linked ? '' : '<span class="text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded">⚠️ Formulář není synchronizován – zobrazena jen lokální data</span>'}
+                            ${meta.raynet_company_id ? `<a href="${raynetUrl}" target="_blank" class="text-xs text-primary-600 hover:underline px-3 py-1 border border-primary-200 rounded">Otevřít v Raynet →</a>` : ''}
+                            <button onclick="runFieldComparison('${escapeHtml(String(meta.form_id))}')"
+                                    class="text-xs text-gray-600 hover:text-gray-800 px-3 py-1 border border-gray-200 rounded">
+                                🔄 Obnovit
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Summary pills -->
+                    <div class="flex flex-wrap gap-2 mt-4">
+                        <span class="text-xs text-gray-500 self-center">Firma:</span>
+                        ${summaryPill(summary.company_match,    'shoda',   'bg-green-100 text-green-800')}
+                        ${summaryPill(summary.company_mismatch, 'rozdíl',  'bg-red-100 text-red-800')}
+                        ${summaryPill(summary.company_missing,  'chybí',   'bg-amber-100 text-amber-800')}
+                        <span class="mx-2 text-gray-300">|</span>
+                        <span class="text-xs text-gray-500 self-center">Osoba:</span>
+                        ${summaryPill(summary.person_match,     'shoda',   'bg-green-100 text-green-800')}
+                        ${summaryPill(summary.person_mismatch,  'rozdíl',  'bg-red-100 text-red-800')}
+                        ${summaryPill(summary.person_missing,   'chybí',   'bg-amber-100 text-amber-800')}
+                    </div>
+                </div>
+
+                <!-- Legend -->
+                <div class="px-6 pt-4 pb-2 flex flex-wrap gap-3 bg-gray-50 border-b border-gray-100">
+                    <span class="text-xs text-gray-500">Legenda:</span>
+                    ${statusBadge('match')}   <span class="text-xs text-gray-500 mr-2">Hodnoty shodné</span>
+                    ${statusBadge('mismatch')}<span class="text-xs text-gray-500 mr-2">Hodnoty se liší</span>
+                    ${statusBadge('missing')} <span class="text-xs text-gray-500 mr-2">Odesíláno, ale chybí v Raynet</span>
+                    ${statusBadge('extra')}   <span class="text-xs text-gray-500">V Raynet navíc (neodesíláno)</span>
+                </div>
+
+                <!-- Tables -->
+                <div class="p-6 overflow-y-auto max-h-[70vh] space-y-2">
+                    ${buildTable(data.company_rows, '🏢 Firma (Company)')}
+                    ${buildTable(data.person_rows, '👤 Kontaktní osoba (Person)')}
+                </div>
+            `;
+        }
+
+        // ══════════════════════════════════════════════════════════════════
         // Initialize
         document.addEventListener('DOMContentLoaded', async function() {
             log.info('Sync page initializing...');

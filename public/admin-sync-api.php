@@ -174,6 +174,14 @@ try {
             }
             $result = getCompanyJson($companyId);
             break;
+
+        case 'field_comparison':
+            $formId = $data['form_id'] ?? $_GET['form_id'] ?? null;
+            if (!$formId) {
+                throw new Exception('form_id is required');
+            }
+            $result = getFieldComparison($pdo, $formId);
+            break;
             
         case 'get_logs':
             $level = $data['level'] ?? $_GET['level'] ?? null;
@@ -1110,3 +1118,235 @@ function getCompanyJson($companyId): array
         ];
     }
 }
+
+/**
+ * Field Comparison: build a side-by-side diff of what EnergyForms would
+ * send to Raynet vs. what is actually stored there right now.
+ *
+ * Returns:
+ *   company_rows  – array of { label, local_key, local_value, raynet_key, raynet_value, status }
+ *   person_rows   – same shape for the person record
+ *   meta          – form/company/person IDs + sync timestamp
+ */
+function getFieldComparison(PDO $pdo, $formId): array
+{
+    // ── 1. Load local form ────────────────────────────────────────────────────
+    $stmt = $pdo->prepare("
+        SELECT id, form_data, raynet_company_id, raynet_person_id, raynet_synced_at,
+               company_name, contact_person, email
+        FROM forms WHERE id = ?
+    ");
+    $stmt->execute([$formId]);
+    $form = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$form) {
+        return ['success' => false, 'error' => "Formulář #{$formId} nenalezen"];
+    }
+
+    $rawFormData = json_decode($form['form_data'] ?? '{}', true) ?? [];
+    // Merge top-level columns into form data so entity mappers find everything
+    $formData = array_merge($rawFormData, [
+        'companyName'   => $rawFormData['companyName']   ?? $form['company_name']   ?? '',
+        'contactPerson' => $rawFormData['contactPerson'] ?? $form['contact_person'] ?? '',
+        'email'         => $rawFormData['email']         ?? $form['email']          ?? '',
+    ]);
+
+    $companyRaynetId = $form['raynet_company_id'] ? (int) $form['raynet_company_id'] : null;
+    $personRaynetId  = $form['raynet_person_id']  ? (int) $form['raynet_person_id']  : null;
+
+    // ── 2. Build "what we would send" via entity mappers ─────────────────────
+    try {
+        $connector = RaynetConnector::create($pdo);
+    } catch (Exception $e) {
+        return ['success' => false, 'error' => 'Raynet není dostupný: ' . $e->getMessage()];
+    }
+
+    $companyEntity = $connector->company();
+    $companyEntity->fromFormData($formData, $formId);
+    $localCompany = $companyEntity->getData();
+
+    // Flatten address & contactInfo so individual sub-fields are diffable
+    $localCompany = flattenRaynetData($localCompany);
+
+    $personEntity = $connector->person();
+    $personEntity->fromFormData($formData, $formId);
+    $localPerson = $personEntity->getData();
+    $localPerson = flattenRaynetData($localPerson);
+
+    // ── 3. Fetch live data from Raynet ────────────────────────────────────────
+    $raynetCompany = [];
+    $raynetPerson  = [];
+    $fetchError    = null;
+
+    if ($companyRaynetId) {
+        try {
+            $found = $connector->company()->findById($companyRaynetId);
+            if ($found) {
+                $raynetCompany = flattenRaynetData($found->getData());
+            }
+        } catch (Exception $e) {
+            $fetchError = 'Firma: ' . $e->getMessage();
+        }
+    }
+
+    if ($personRaynetId) {
+        try {
+            $found = $connector->person()->findById($personRaynetId);
+            if ($found) {
+                $raynetPerson = flattenRaynetData($found->getData());
+            }
+        } catch (Exception $e) {
+            $fetchError = ($fetchError ? $fetchError . ' | ' : '') . 'Osoba: ' . $e->getMessage();
+        }
+    }
+
+    // ── 4. Build comparison rows ──────────────────────────────────────────────
+    // Human-readable labels for the most important keys
+    $companyLabels = [
+        'name'                              => 'Název firmy',
+        'regNumber'                         => 'IČO',
+        'taxNumber'                         => 'DIČ',
+        'rating'                            => 'Hodnocení',
+        'state'                             => 'Stav',
+        'role'                              => 'Role',
+        'extId'                             => 'Ext ID (EnergyForms)',
+        'notice'                            => 'Poznámka',
+        'addresses.0.address.street'        => 'Ulice',
+        'addresses.0.address.city'          => 'Město',
+        'addresses.0.address.zipCode'       => 'PSČ',
+        'addresses.0.address.country'       => 'Stát',
+        'addresses.0.contactInfo.email'     => 'E-mail (adresa)',
+        'addresses.0.contactInfo.tel1'      => 'Telefon (adresa)',
+        'addresses.0.contactInfo.www'       => 'Web',
+        // primary address shorthand returned by GET
+        'primaryAddress.address.street'     => 'Ulice',
+        'primaryAddress.address.city'       => 'Město',
+        'primaryAddress.address.zipCode'    => 'PSČ',
+        'primaryAddress.contactInfo.email'  => 'E-mail (adresa)',
+        'primaryAddress.contactInfo.tel1'   => 'Telefon (adresa)',
+    ];
+
+    $personLabels = [
+        'firstName'              => 'Jméno',
+        'lastName'               => 'Příjmení',
+        'extId'                  => 'Ext ID (EnergyForms)',
+        'securityLevel'          => 'Bezpečnostní úroveň',
+        'notice'                 => 'Poznámka',
+        'contactInfo.email'      => 'E-mail',
+        'contactInfo.tel1'       => 'Telefon',
+        'contactInfo.tel1Type'   => 'Typ telefonu',
+    ];
+
+    $companyRows = buildComparisonRows($localCompany, $raynetCompany, $companyLabels);
+    $personRows  = buildComparisonRows($localPerson,  $raynetPerson,  $personLabels);
+
+    return [
+        'success' => true,
+        'data' => [
+            'meta' => [
+                'form_id'          => $form['id'],
+                'company_name'     => $form['company_name'],
+                'contact_person'   => $form['contact_person'],
+                'raynet_company_id'=> $companyRaynetId,
+                'raynet_person_id' => $personRaynetId,
+                'synced_at'        => $form['raynet_synced_at'],
+                'fetch_error'      => $fetchError,
+                'raynet_linked'    => $companyRaynetId !== null,
+            ],
+            'company_rows' => $companyRows,
+            'person_rows'  => $personRows,
+            'summary' => [
+                'company_match'   => countStatus($companyRows, 'match'),
+                'company_mismatch'=> countStatus($companyRows, 'mismatch'),
+                'company_missing' => countStatus($companyRows, 'missing'),
+                'person_match'    => countStatus($personRows,  'match'),
+                'person_mismatch' => countStatus($personRows,  'mismatch'),
+                'person_missing'  => countStatus($personRows,  'missing'),
+            ],
+        ],
+    ];
+}
+
+/**
+ * Flatten nested arrays (addresses, contactInfo, etc.) into dot-notation keys.
+ * Arrays of objects get index numbers: addresses.0.address.street
+ */
+function flattenRaynetData(array $data, string $prefix = ''): array
+{
+    $result = [];
+    foreach ($data as $key => $value) {
+        $fullKey = $prefix !== '' ? "{$prefix}.{$key}" : (string) $key;
+        if (is_array($value)) {
+            $result += flattenRaynetData($value, $fullKey);
+        } else {
+            $result[$fullKey] = $value;
+        }
+    }
+    return $result;
+}
+
+/**
+ * Build rows comparing local (what we'd send) vs raynet (what is actually there).
+ * Only includes keys that appear in either side OR have a known label.
+ *
+ * Row status:
+ *   match    – both sides have identical non-empty values
+ *   mismatch – both sides have values but they differ
+ *   missing  – local has a value but raynet doesn't (field not written)
+ *   extra    – raynet has a value but local wouldn't send it (informational)
+ *   empty    – neither side has a value
+ */
+function buildComparisonRows(array $local, array $raynet, array $labels): array
+{
+    // Collect all keys that are interesting
+    $keys = array_unique(array_merge(array_keys($labels), array_keys($local)));
+    // Also include raynet-only keys that are in a known label set
+    foreach (array_keys($raynet) as $rk) {
+        if (isset($labels[$rk])) {
+            $keys[] = $rk;
+        }
+    }
+    $keys = array_unique($keys);
+
+    $rows = [];
+    foreach ($keys as $key) {
+        $localVal  = isset($local[$key])  ? (string) $local[$key]  : null;
+        $raynetVal = isset($raynet[$key]) ? (string) $raynet[$key] : null;
+
+        // Skip rows where neither side has data and there's no label
+        if ($localVal === null && $raynetVal === null && !isset($labels[$key])) {
+            continue;
+        }
+
+        $status = 'empty';
+        if ($localVal !== null && $raynetVal !== null) {
+            $status = ($localVal === $raynetVal) ? 'match' : 'mismatch';
+        } elseif ($localVal !== null && $raynetVal === null) {
+            $status = 'missing';
+        } elseif ($localVal === null && $raynetVal !== null) {
+            $status = 'extra';
+        }
+
+        $rows[] = [
+            'key'          => $key,
+            'label'        => $labels[$key] ?? $key,
+            'local_value'  => $localVal,
+            'raynet_value' => $raynetVal,
+            'status'       => $status,
+        ];
+    }
+
+    // Sort: mismatches first, then missing, then matches, then extra/empty
+    usort($rows, function (array $a, array $b): int {
+        $order = ['mismatch' => 0, 'missing' => 1, 'match' => 2, 'extra' => 3, 'empty' => 4];
+        return ($order[$a['status']] ?? 9) <=> ($order[$b['status']] ?? 9);
+    });
+
+    return $rows;
+}
+
+function countStatus(array $rows, string $status): int
+{
+    return count(array_filter($rows, fn($r) => $r['status'] === $status));
+}
+
