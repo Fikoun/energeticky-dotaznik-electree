@@ -506,40 +506,65 @@ function formatFieldValue($key, $value) {
     // Priority fields
     if ((strpos($key, 'priority') !== false || strpos($key, 'Priority') !== false) && is_string($value) && !empty($value)) {
         $priority_labels = [
-            'fve-overflow' => '⚡ Úspora z přetoků z FVE',
-            'peak-shaving' => '📊 Posun spotřeby (peak shaving)',
-            'backup-power' => '🔋 Záložní napájení',
-            'grid-services' => '🔌 Služby pro síť',
+            'fve-overflow'    => '⚡ Úspora z přetoků z FVE',
+            'peak-shaving'    => '📊 Posun spotřeby (peak shaving)',
+            'backup-power'    => '🔋 Záloha při výpadku sítě',
+            'grid-services'   => '🔌 Služby pro síť',
             'cost-optimization' => '💰 Optimalizace nákladů na elektřinu',
-            'environmental' => '🌿 Ekologický přínos',
+            'environmental'   => '🌿 Ekologický přínos',
             'machine-support' => '⚙️ Podpora výkonu strojů',
+            'power-reduction' => '📉 Snížení rezervovaného příkonu',
+            'energy-trading'  => '💹 Možnost obchodování s energií',
+            'subsidy'         => '🏦 Získání dotace',
+            'other'           => '📝 Jiný účel',
         ];
         $priority_text = $priority_labels[$value] ?? $value;
         return '<div style="background: #ffe6cc; padding: 10px; border-radius: 5px; color: #994d00; font-weight: 500;">' . htmlspecialchars($priority_text) . '</div>';
     }
     
-    // Weekday pattern
-    if ($key === 'weekdayPattern' && is_array($value) && !empty($value)) {
-        $pattern_html = '<div style="background: #e7f3ff; padding: 10px; border-radius: 5px; margin: 5px 0;">';
-        foreach ($value as $hour => $consumption) {
-            $pattern_html .= '<div style="padding: 3px 0; border-bottom: 1px solid #ccc;">
-                                <strong>' . htmlspecialchars($hour) . ':00</strong> - ' . htmlspecialchars($consumption) . ' kW
-                              </div>';
+    // Weekday/Weekend pattern — group by period and show translated names
+    if (($key === 'weekdayPattern' || $key === 'weekendPattern') && is_array($value) && !empty($value)) {
+        $bg    = $key === 'weekdayPattern' ? '#e7f3ff' : '#e8f5e8';
+        $border = $key === 'weekdayPattern' ? '#0066cc' : '#28a745';
+        $period_labels = [
+            'morningPeak'    => '🌅 Ranní špička',
+            'noonLow'        => '☀️ Polední útlum',
+            'afternoonPeak'  => '🌇 Odpolední špička',
+            'nightLow'       => '🌙 Noční útlum',
+        ];
+        $key_labels = [
+            'Start'       => 'Začátek',
+            'End'         => 'Konec',
+            'Consumption' => 'Spotřeba (kW)',
+        ];
+        // Group keys by period prefix
+        $periods = [];
+        foreach ($value as $subkey => $subval) {
+            if ($subval === '' || $subval === null) continue;
+            foreach (array_keys($period_labels) as $period) {
+                if (strpos($subkey, $period) === 0) {
+                    $part = substr($subkey, strlen($period)); // e.g. "Start", "End", "Consumption"
+                    $periods[$period][$part] = $subval;
+                    break;
+                }
+            }
         }
-        $pattern_html .= '</div>';
-        return $pattern_html;
-    }
-    
-    // Weekend pattern
-    if ($key === 'weekendPattern' && is_array($value) && !empty($value)) {
-        $pattern_html = '<div style="background: #e8f5e8; padding: 10px; border-radius: 5px; margin: 5px 0;">';
-        foreach ($value as $hour => $consumption) {
-            $pattern_html .= '<div style="padding: 3px 0; border-bottom: 1px solid #ccc;">
-                                <strong>' . htmlspecialchars($hour) . ':00</strong> - ' . htmlspecialchars($consumption) . ' kW
-                              </div>';
+        if (empty($periods)) return '<span style="color: #999; font-style: italic;">Nevyplněno</span>';
+        $html = '<div style="background: ' . $bg . '; border-radius: 8px; padding: 12px; margin: 5px 0;">';
+        foreach ($periods as $period => $parts) {
+            $period_name = $period_labels[$period] ?? $period;
+            $html .= '<div style="margin-bottom: 10px; padding: 10px; background: white; border-left: 4px solid ' . $border . '; border-radius: 4px;">';
+            $html .= '<div style="font-weight: 700; color: #333; margin-bottom: 6px;">' . htmlspecialchars($period_name) . '</div>';
+            foreach ($parts as $part => $val) {
+                $part_label = $key_labels[$part] ?? $part;
+                $html .= '<div style="font-size: 13px; color: #555; padding: 2px 0;">';
+                $html .= '<strong>' . htmlspecialchars($part_label) . ':</strong> ' . htmlspecialchars((string)$val);
+                $html .= '</div>';
+            }
+            $html .= '</div>';
         }
-        $pattern_html .= '</div>';
-        return $pattern_html;
+        $html .= '</div>';
+        return $html;
     }
     
     // customerType checkbox group
@@ -564,9 +589,19 @@ function formatFieldValue($key, $value) {
     // goals checkbox group
     if ($key === 'goals' && is_array($value)) {
         $goal_labels = [
+            // camelCase keys from the actual form
+            'fveOverflow'         => '⚡ Úspora z přetoků z FVE',
+            'peakShaving'         => '📊 Posun spotřeby (peak shaving)',
+            'backupPower'         => '🔋 Záloha při výpadku sítě',
+            'machineSupport'      => '⚙️ Podpora výkonu strojů',
+            'powerReduction'      => '📉 Snížení rezervovaného příkonu',
+            'energyTrading'       => '💹 Možnost obchodování s energií',
+            'subsidy'             => '🏦 Získání dotace',
+            'other'               => '📝 Jiný účel',
+            // legacy kebab-case / lowercase keys (backwards compat)
             'fve-overflow'        => '⚡ Úspora z přetoků z FVE',
             'peak-shaving'        => '📊 Posun spotřeby (peak shaving)',
-            'backup-power'        => '🔋 Záložní napájení',
+            'backup-power'        => '🔋 Záloha při výpadku sítě',
             'grid-services'       => '🔌 Služby pro síť',
             'cost-optimization'   => '💰 Optimalizace nákladů na elektřinu',
             'environmental'       => '🌿 Ekologický přínos',
@@ -574,7 +609,6 @@ function formatFieldValue($key, $value) {
             'energyindependence'  => 'Energetická nezávislost',
             'costsaving'          => 'Úspora nákladů',
             'backuppower'         => 'Záložní napájení',
-            'peakshaving'         => 'Peak shaving',
             'gridstabilization'   => 'Stabilizace sítě',
             'environmentalbenefit'=> 'Ekologický přínos',
         ];
@@ -594,6 +628,7 @@ function formatFieldValue($key, $value) {
             'sitePlan'           => 'Situační plán areálu',
             'electricalPlan'     => 'Elektrická dokumentace',
             'buildingPlan'       => 'Půdorysy budov',
+            'other'              => 'Jiná dokumentace',
             'otherDocumentation' => 'Jiná dokumentace',
         ];
         $items = normalizeCheckboxGroup($value);
@@ -627,6 +662,14 @@ function formatFieldValue($key, $value) {
     // Proposed steps
     if ($key === 'proposedSteps' && is_array($value) && !empty($value)) {
         $step_labels = [
+            // actual form keys
+            'preliminary'           => '📋 Předběžná nabídka',
+            'technical'             => '🔧 Technická prohlídka',
+            'detailed'              => '📝 Příprava zakázky a připojení',
+            'consultancy'           => '💬 Konzultace s energetikem',
+            'support'               => '💹 Možnost obchodování s energií',
+            'other'                 => '📌 Jiný postup',
+            // legacy keys
             'connectionApplication' => '📄 Žádost o připojení k distribuční síti',
             'powerIncrease'         => '⚡ Navýšení rezervovaného příkonu',
             'projectDocumentation'  => '📋 Zpracování projektové dokumentace',
@@ -648,6 +691,11 @@ function formatFieldValue($key, $value) {
     // Agreements
     if ($key === 'agreements' && is_array($value) && !empty($value)) {
         $agreement_labels = [
+            // actual form keys
+            'dataProcessing'      => '🔒 Souhlas se zpracováním osobních údajů',
+            'technicalVisit'      => '🔧 Souhlas s návštěvou technika',
+            'marketing'           => '📣 Souhlas s obchodními sděleními',
+            // legacy keys
             'connectionContract'  => '📝 Smlouva o připojení k DS',
             'powerOfAttorney'     => '📜 Plná moc pro jednání s DS',
             'landLease'           => '🏞️ Smlouva o pronájmu pozemku',
