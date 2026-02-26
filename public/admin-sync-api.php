@@ -389,7 +389,7 @@ function getLocalForms(PDO $pdo, int $page, int $perPage, string $filter): array
 {
     $offset = ($page - 1) * $perPage;
     
-    $whereClause = "WHERE status = 'submitted'";
+    $whereClause = "WHERE status IN ('submitted', 'confirmed')";
     
     switch ($filter) {
         case 'synced':
