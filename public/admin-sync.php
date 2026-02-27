@@ -1795,6 +1795,8 @@ header('Content-Type: text/html; charset=utf-8');
             const meta    = data.meta;
             const summary = data.summary;
             const linked  = meta.raynet_linked;
+            const mappingInfo = data.mapping_info;
+            const diagnostics = data.diagnostics || [];
 
             const statusBadge = (s) => {
                 switch (s) {
@@ -1816,12 +1818,56 @@ header('Content-Type: text/html; charset=utf-8');
                 }
             };
 
-            const buildTable = (rows, title) => {
-                if (!rows || rows.length === 0) return '';
-                const TABLE_ROWS = rows.map(r => `
+            const severityIcon = (s) => {
+                switch (s) {
+                    case 'critical': return '🚨';
+                    case 'warning':  return '⚠️';
+                    case 'info':     return 'ℹ️';
+                    default:         return '📝';
+                }
+            };
+
+            const severityClass = (s) => {
+                switch (s) {
+                    case 'critical': return 'bg-red-50 border-red-300 text-red-800';
+                    case 'warning':  return 'bg-amber-50 border-amber-300 text-amber-800';
+                    case 'info':     return 'bg-blue-50 border-blue-300 text-blue-800';
+                    default:         return 'bg-gray-50 border-gray-300 text-gray-800';
+                }
+            };
+
+            // Build diagnostics section
+            const diagnosticsHtml = diagnostics.length > 0 ? `
+                <div class="px-6 py-4 bg-gray-50 border-b border-gray-100">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-2">🔍 Diagnostika</h4>
+                    <div class="space-y-2">
+                        ${diagnostics.map(d => `
+                            <div class="flex items-start gap-2 p-2 rounded border ${severityClass(d.severity)}">
+                                <span class="text-sm">${severityIcon(d.severity)}</span>
+                                <span class="text-xs">${escapeHtml(d.message)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : '';
+
+            // Build custom fields table
+            const rows = data.custom_field_rows || [];
+            let tableHtml = '';
+            if (rows.length > 0) {
+                const TABLE_ROWS = rows.map(r => {
+                    const debugTitle = r.debug
+                        ? `Raynet label: ${r.debug.raynet_label || '?'}\nForm field: ${r.form_field || '?'}\nType: ${r.debug.form_field_def || '?'}\nIn mapping: ${r.debug.in_mapping ? 'Yes' : 'No'}\nIn form data: ${r.debug.in_form_data === null ? '?' : (r.debug.in_form_data ? 'Yes' : 'No')}`
+                        : '';
+                    return `
                     <tr class="${rowClass(r.status)} hover:brightness-95 transition-all">
-                        <td class="px-4 py-2.5 text-xs font-medium text-gray-700 whitespace-nowrap w-44">${escapeHtml(r.label)}</td>
-                        <td class="px-4 py-2.5 text-xs text-gray-400 font-mono whitespace-nowrap w-52">${escapeHtml(r.key)}</td>
+                        <td class="px-4 py-2.5 text-xs font-medium text-gray-700 whitespace-nowrap w-48">
+                            <div class="truncate" title="${escapeHtml(debugTitle)}">${escapeHtml(r.label)}</div>
+                            ${r.form_field ? `<div class="text-[10px] text-gray-400 font-mono">${escapeHtml(r.form_field)}</div>` : ''}
+                        </td>
+                        <td class="px-4 py-2.5 text-xs text-gray-400 font-mono whitespace-nowrap w-56">
+                            <div class="truncate" title="${escapeHtml(r.key)}">${escapeHtml(r.key)}</div>
+                        </td>
                         <td class="px-4 py-2.5 text-sm text-gray-900 max-w-xs">
                             <div class="truncate" title="${escapeHtml(r.local_value ?? '')}">${
                                 r.local_value !== null
@@ -1837,17 +1883,18 @@ header('Content-Type: text/html; charset=utf-8');
                             }</div>
                         </td>
                         <td class="px-4 py-2.5 text-center">${statusBadge(r.status)}</td>
-                    </tr>`).join('');
+                    </tr>`;
+                }).join('');
 
-                return `
+                tableHtml = `
                     <div class="mb-8">
-                        <h4 class="text-base font-semibold text-gray-800 mb-2">${title}</h4>
+                        <h4 class="text-base font-semibold text-gray-800 mb-2">⚙️ Vlastní pole firmy (Company Custom Fields)</h4>
                         <div class="overflow-x-auto rounded-lg border border-gray-200">
                             <table class="min-w-full text-sm">
                                 <thead class="bg-gray-50 border-b border-gray-200">
                                     <tr>
-                                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase w-44">Pole</th>
-                                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase w-52">Klíč (API)</th>
+                                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase w-48">Pole</th>
+                                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase w-56">Raynet klíč</th>
                                         <th class="px-4 py-2 text-left text-xs font-bold text-blue-600 uppercase">📤 Odesíláme (local)</th>
                                         <th class="px-4 py-2 text-left text-xs font-bold text-purple-600 uppercase">☁️ V Raynet (live)</th>
                                         <th class="px-4 py-2 text-center text-xs font-bold text-gray-500 uppercase">Stav</th>
@@ -1857,7 +1904,14 @@ header('Content-Type: text/html; charset=utf-8');
                             </table>
                         </div>
                     </div>`;
-            };
+            } else {
+                tableHtml = `
+                    <div class="text-center py-12">
+                        <div class="text-gray-400 text-5xl mb-4">📭</div>
+                        <h3 class="text-lg font-medium text-gray-800 mb-2">Žádná vlastní pole k porovnání</h3>
+                        <p class="text-sm text-gray-500">Buď není nastaveno mapování, nebo formulář nemá žádná data pro vlastní pole.</p>
+                    </div>`;
+            }
 
             const summaryPill = (count, label, color) =>
                 `<span class="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${color}">${count} ${label}</span>`;
@@ -1871,7 +1925,7 @@ header('Content-Type: text/html; charset=utf-8');
                 <div class="px-6 pt-6 pb-4 border-b border-gray-200">
                     <div class="flex flex-wrap items-start justify-between gap-4">
                         <div>
-                            <h3 class="text-lg font-bold text-gray-900">🔬 Výsledek porovnání polí</h3>
+                            <h3 class="text-lg font-bold text-gray-900">🔬 Porovnání vlastních polí (Custom Fields)</h3>
                             <p class="text-sm text-gray-500 mt-0.5">
                                 Formulář <strong>#${escapeHtml(String(meta.form_id))}</strong> &mdash;
                                 ${escapeHtml(meta.company_name || '?')}
@@ -1889,33 +1943,40 @@ header('Content-Type: text/html; charset=utf-8');
                         </div>
                     </div>
 
+                    <!-- Mapping info -->
+                    <div class="flex flex-wrap gap-3 mt-3 text-xs text-gray-500">
+                        <span>Zdroj mapování: <strong class="${mappingInfo.source === 'database' ? 'text-green-700' : 'text-red-700'}">${escapeHtml(mappingInfo.source)}</strong></span>
+                        <span>Mapování: <strong>${mappingInfo.total_mappings}</strong> polí</span>
+                        <span>S daty: <strong>${mappingInfo.fields_with_data}</strong></span>
+                        <span>V Raynet: <strong>${mappingInfo.raynet_fields_found}</strong> polí</span>
+                        <span>Raynet konfigurace: <strong>${mappingInfo.raynet_config_total}</strong> celkem</span>
+                    </div>
+
                     <!-- Summary pills -->
-                    <div class="flex flex-wrap gap-2 mt-4">
-                        <span class="text-xs text-gray-500 self-center">Firma:</span>
-                        ${summaryPill(summary.company_match,    'shoda',   'bg-green-100 text-green-800')}
-                        ${summaryPill(summary.company_mismatch, 'rozdíl',  'bg-red-100 text-red-800')}
-                        ${summaryPill(summary.company_missing,  'chybí',   'bg-amber-100 text-amber-800')}
-                        <span class="mx-2 text-gray-300">|</span>
-                        <span class="text-xs text-gray-500 self-center">Osoba:</span>
-                        ${summaryPill(summary.person_match,     'shoda',   'bg-green-100 text-green-800')}
-                        ${summaryPill(summary.person_mismatch,  'rozdíl',  'bg-red-100 text-red-800')}
-                        ${summaryPill(summary.person_missing,   'chybí',   'bg-amber-100 text-amber-800')}
+                    <div class="flex flex-wrap gap-2 mt-3">
+                        <span class="text-xs text-gray-500 self-center">Vlastní pole:</span>
+                        ${summaryPill(summary.match,    'shoda',   'bg-green-100 text-green-800')}
+                        ${summaryPill(summary.mismatch, 'rozdíl',  'bg-red-100 text-red-800')}
+                        ${summaryPill(summary.missing,  'chybí v Raynet',   'bg-amber-100 text-amber-800')}
+                        ${summaryPill(summary.extra,    'extra v Raynet',   'bg-blue-100 text-blue-800')}
+                        <span class="text-xs text-gray-400 self-center ml-2">(celkem ${summary.total})</span>
                     </div>
                 </div>
+
+                ${diagnosticsHtml}
 
                 <!-- Legend -->
                 <div class="px-6 pt-4 pb-2 flex flex-wrap gap-3 bg-gray-50 border-b border-gray-100">
                     <span class="text-xs text-gray-500">Legenda:</span>
                     ${statusBadge('match')}   <span class="text-xs text-gray-500 mr-2">Hodnoty shodné</span>
                     ${statusBadge('mismatch')}<span class="text-xs text-gray-500 mr-2">Hodnoty se liší</span>
-                    ${statusBadge('missing')} <span class="text-xs text-gray-500 mr-2">Odesíláno, ale chybí v Raynet</span>
-                    ${statusBadge('extra')}   <span class="text-xs text-gray-500">V Raynet navíc (neodesíláno)</span>
+                    ${statusBadge('missing')} <span class="text-xs text-gray-500 mr-2">Odesíláme, ale v Raynet chybí</span>
+                    ${statusBadge('extra')}   <span class="text-xs text-gray-500">V Raynet navíc (neodesíláme)</span>
                 </div>
 
-                <!-- Tables -->
+                <!-- Table -->
                 <div class="p-6 overflow-y-auto max-h-[70vh] space-y-2">
-                    ${buildTable(data.company_rows, '🏢 Firma (Company)')}
-                    ${buildTable(data.person_rows, '👤 Kontaktní osoba (Person)')}
+                    ${tableHtml}
                 </div>
             `;
         }

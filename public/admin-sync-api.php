@@ -1120,21 +1120,24 @@ function getCompanyJson($companyId): array
 }
 
 /**
- * Field Comparison: build a side-by-side diff of what EnergyForms would
- * send to Raynet vs. what is actually stored there right now.
+ * Field Comparison: build a side-by-side diff of company custom fields —
+ * what EnergyForms would send vs. what is stored in Raynet right now.
+ *
+ * Focuses exclusively on custom fields to diagnose sync issues.
  *
  * Returns:
- *   company_rows  – array of { label, local_key, local_value, raynet_key, raynet_value, status }
- *   person_rows   – same shape for the person record
- *   meta          – form/company/person IDs + sync timestamp
+ *   custom_field_rows – array of { label, key, local_value, raynet_value, status, debug }
+ *   mapping_info      – info about the field mapping pipeline
+ *   meta              – form/company IDs + sync timestamp
  */
 function getFieldComparison(PDO $pdo, $formId): array
 {
     // ── 1. Load local form ────────────────────────────────────────────────────
     $stmt = $pdo->prepare("
-        SELECT id, form_data, raynet_company_id, raynet_person_id, raynet_synced_at,
-               company_name, contact_person, email
-        FROM forms WHERE id = ?
+        SELECT f.*, u.name as user_name
+        FROM forms f
+        LEFT JOIN users u ON f.user_id = u.id
+        WHERE f.id = ?
     ");
     $stmt->execute([$formId]);
     $form = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -1144,7 +1147,6 @@ function getFieldComparison(PDO $pdo, $formId): array
     }
 
     $rawFormData = json_decode($form['form_data'] ?? '{}', true) ?? [];
-    // Merge top-level columns into form data so entity mappers find everything
     $formData = array_merge($rawFormData, [
         'companyName'   => $rawFormData['companyName']   ?? $form['company_name']   ?? '',
         'contactPerson' => $rawFormData['contactPerson'] ?? $form['contact_person'] ?? '',
@@ -1152,116 +1154,265 @@ function getFieldComparison(PDO $pdo, $formId): array
     ]);
 
     $companyRaynetId = $form['raynet_company_id'] ? (int) $form['raynet_company_id'] : null;
-    $personRaynetId  = $form['raynet_person_id']  ? (int) $form['raynet_person_id']  : null;
 
-    // ── 2. Build "what we would send" via entity mappers ─────────────────────
+    // ── 2. Replicate the exact custom fields build pipeline ──────────────────
     try {
         $connector = RaynetConnector::create($pdo);
     } catch (Exception $e) {
         return ['success' => false, 'error' => 'Raynet není dostupný: ' . $e->getMessage()];
     }
 
-    $companyEntity = $connector->company();
-    $companyEntity->fromFormData($formData, $formId);
-    $localCompany = $companyEntity->getData();
+    // 2a. Load the stored field mapping from settings table (formField => raynetFieldName)
+    $fieldMapping = [];
+    $mappingSource = 'none';
+    try {
+        $stmt2 = $pdo->prepare("SELECT `value` FROM settings WHERE `key` = 'raynet_field_mapping'");
+        $stmt2->execute();
+        $row = $stmt2->fetch(PDO::FETCH_ASSOC);
+        if ($row && $row['value']) {
+            $decoded = json_decode($row['value'], true);
+            if (is_array($decoded)) {
+                $fieldMapping = $decoded;
+                $mappingSource = 'database';
+            }
+        }
+    } catch (PDOException $e) {
+        $mappingSource = 'error: ' . $e->getMessage();
+    }
 
-    // Flatten address & contactInfo so individual sub-fields are diffable
-    $localCompany = flattenRaynetData($localCompany);
+    // 2b. Replicate what syncForm does: parse form data + add metadata
+    $parsedFormData = $formData;
+    if (isset($form['form_data']) && is_string($form['form_data'])) {
+        $decoded = json_decode($form['form_data'], true);
+        if ($decoded) {
+            $parsedFormData = array_merge($form, $decoded);
+        }
+    }
+    $parsedFormData['formId'] = (string) $formId;
+    $parsedFormData['formSubmittedAt'] = $form['created_at'] ?? date('Y-m-d H:i:s');
+    $baseUrl = rtrim($_SERVER['HTTP_HOST'] ?? 'electree.cz', '/');
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $parsedFormData['formUrl'] = "{$protocol}://{$baseUrl}/public/form-detail.php?id={$formId}";
 
-    $personEntity = $connector->person();
-    $personEntity->fromFormData($formData, $formId);
-    $localPerson = $personEntity->getData();
-    $localPerson = flattenRaynetData($localPerson);
+    // Load file attachments (same as connector does)
+    try {
+        $stmtFiles = $pdo->query("SHOW TABLES LIKE 'form_files'");
+        if ($stmtFiles->rowCount() > 0) {
+            $stmtF = $pdo->prepare("
+                SELECT id, field_name, original_name, file_size, mime_type
+                FROM form_files WHERE form_id = ? AND deleted_at IS NULL
+                ORDER BY field_name, uploaded_at
+            ");
+            $stmtF->execute([$formId]);
+            $fileRows = $stmtF->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($fileRows as $fr) {
+                $fn = $fr['field_name'];
+                if (!isset($parsedFormData[$fn])) {
+                    $parsedFormData[$fn] = [];
+                }
+                $parsedFormData[$fn][] = [
+                    'name' => $fr['original_name'],
+                    'url' => 'https://ed.electree.cz/public/serve-file.php?id=' . $fr['id'],
+                    'size' => $fr['file_size'],
+                    'type' => $fr['mime_type'],
+                ];
+            }
+        }
+    } catch (PDOException $e) {
+        // ignore
+    }
 
-    // ── 3. Fetch live data from Raynet ────────────────────────────────────────
-    $raynetCompany = [];
-    $raynetPerson  = [];
-    $fetchError    = null;
+    // 2c. Build custom fields payload exactly as the sync does
+    $localCustomFields = [];
+    if (!empty($fieldMapping)) {
+        $localCustomFields = $connector->customFields()->buildCustomFieldsPayload($parsedFormData, $fieldMapping);
+    }
+
+    // ── 3. Fetch live custom fields from Raynet company ──────────────────────
+    $raynetCustomFields = [];
+    $fetchError = null;
+    $raynetAllData = null;
 
     if ($companyRaynetId) {
         try {
             $found = $connector->company()->findById($companyRaynetId);
             if ($found) {
-                $raynetCompany = flattenRaynetData($found->getData());
+                $raynetAllData = $found->getData();
+                $raynetCustomFields = $raynetAllData['customFields'] ?? [];
             }
         } catch (Exception $e) {
             $fetchError = 'Firma: ' . $e->getMessage();
         }
     }
 
-    if ($personRaynetId) {
-        try {
-            $found = $connector->person()->findById($personRaynetId);
-            if ($found) {
-                $raynetPerson = flattenRaynetData($found->getData());
-            }
-        } catch (Exception $e) {
-            $fetchError = ($fetchError ? $fetchError . ' | ' : '') . 'Osoba: ' . $e->getMessage();
-        }
+    // ── 4. Build reverse lookup: raynetFieldName → formFieldName ─────────────
+    $reverseMapping = []; // raynetFieldName => formFieldName
+    foreach ($fieldMapping as $formField => $raynetField) {
+        $reverseMapping[$raynetField] = $formField;
     }
 
-    // ── 4. Build comparison rows ──────────────────────────────────────────────
-    // Human-readable labels for the most important keys
-    $companyLabels = [
-        'name'                              => 'Název firmy',
-        'regNumber'                         => 'IČO',
-        'taxNumber'                         => 'DIČ',
-        'rating'                            => 'Hodnocení',
-        'state'                             => 'Stav',
-        'role'                              => 'Role',
-        'extId'                             => 'Ext ID (EnergyForms)',
-        'notice'                            => 'Poznámka',
-        'addresses.0.address.street'        => 'Ulice',
-        'addresses.0.address.city'          => 'Město',
-        'addresses.0.address.zipCode'       => 'PSČ',
-        'addresses.0.address.country'       => 'Stát',
-        'addresses.0.contactInfo.email'     => 'E-mail (adresa)',
-        'addresses.0.contactInfo.tel1'      => 'Telefon (adresa)',
-        'addresses.0.contactInfo.www'       => 'Web',
-        // primary address shorthand returned by GET
-        'primaryAddress.address.street'     => 'Ulice',
-        'primaryAddress.address.city'       => 'Město',
-        'primaryAddress.address.zipCode'    => 'PSČ',
-        'primaryAddress.contactInfo.email'  => 'E-mail (adresa)',
-        'primaryAddress.contactInfo.tel1'   => 'Telefon (adresa)',
-    ];
+    // ── 5. Get Raynet field config to resolve technical names to labels ───────
+    $raynetFieldLabels = []; // raynetFieldName => label from Raynet config
+    try {
+        $companyFieldConfigs = $connector->customFields()->getCompanyFields();
+        foreach ($companyFieldConfigs as $cfg) {
+            $name = $cfg['name'] ?? null;
+            $label = $cfg['label'] ?? null;
+            if ($name) {
+                $raynetFieldLabels[$name] = $label ?? $name;
+            }
+        }
+    } catch (Exception $e) {
+        // Ignore, we'll use keys as labels
+    }
 
-    $personLabels = [
-        'firstName'              => 'Jméno',
-        'lastName'               => 'Příjmení',
-        'extId'                  => 'Ext ID (EnergyForms)',
-        'securityLevel'          => 'Bezpečnostní úroveň',
-        'notice'                 => 'Poznámka',
-        'contactInfo.email'      => 'E-mail',
-        'contactInfo.tel1'       => 'Telefon',
-        'contactInfo.tel1Type'   => 'Typ telefonu',
-    ];
+    // ── 6. Build comparison rows for custom fields ───────────────────────────
+    $customFieldRows = [];
+    $allKeys = array_unique(array_merge(
+        array_keys($localCustomFields),
+        array_keys($raynetCustomFields)
+    ));
+    sort($allKeys);
 
-    $companyRows = buildComparisonRows($localCompany, $raynetCompany, $companyLabels);
-    $personRows  = buildComparisonRows($localPerson,  $raynetPerson,  $personLabels);
+    foreach ($allKeys as $raynetFieldName) {
+        $localVal  = isset($localCustomFields[$raynetFieldName])  ? $localCustomFields[$raynetFieldName]  : null;
+        $raynetVal = isset($raynetCustomFields[$raynetFieldName]) ? $raynetCustomFields[$raynetFieldName] : null;
+
+        // Stringify for comparison
+        $localStr  = $localVal !== null  ? (is_bool($localVal)  ? ($localVal  ? 'true' : 'false') : (string) $localVal)  : null;
+        $raynetStr = $raynetVal !== null ? (is_bool($raynetVal) ? ($raynetVal ? 'true' : 'false') : (string) $raynetVal) : null;
+
+        // Determine status
+        $status = 'empty';
+        if ($localStr !== null && $raynetStr !== null) {
+            // Normalize for comparison: trim whitespace, compare case-insensitively for booleans
+            $localNorm = trim($localStr);
+            $raynetNorm = trim($raynetStr);
+            // Boolean normalization: Raynet may store "1"/"0" vs "true"/"false"
+            $boolMap = ['1' => 'true', '0' => 'false', 'ano' => 'true', 'ne' => 'false'];
+            $localComp = $boolMap[strtolower($localNorm)] ?? $localNorm;
+            $raynetComp = $boolMap[strtolower($raynetNorm)] ?? $raynetNorm;
+            $status = ($localComp === $raynetComp) ? 'match' : 'mismatch';
+        } elseif ($localStr !== null && $raynetStr === null) {
+            $status = 'missing';
+        } elseif ($localStr === null && $raynetStr !== null) {
+            $status = 'extra';
+        }
+
+        // Build human-readable label
+        $formFieldName = $reverseMapping[$raynetFieldName] ?? null;
+        $raynetLabel = $raynetFieldLabels[$raynetFieldName] ?? null;
+        $formFieldDef = $formFieldName ? (RaynetCustomFields::FORM_FIELDS[$formFieldName] ?? null) : null;
+        $humanLabel = $formFieldDef['label'] ?? $raynetLabel ?? $raynetFieldName;
+
+        $customFieldRows[] = [
+            'key'            => $raynetFieldName,
+            'form_field'     => $formFieldName,
+            'label'          => $humanLabel,
+            'local_value'    => $localStr,
+            'raynet_value'   => $raynetStr,
+            'status'         => $status,
+            'debug'          => [
+                'raynet_label'   => $raynetLabel,
+                'form_field_def' => $formFieldDef ? $formFieldDef['type'] : null,
+                'in_mapping'     => $formFieldName !== null,
+                'in_form_data'   => $formFieldName ? isset($parsedFormData[$formFieldName]) : null,
+                'raw_local'      => $localVal,
+                'raw_raynet'     => $raynetVal,
+            ],
+        ];
+    }
+
+    // Sort: mismatches first, then missing, then match, then extra
+    usort($customFieldRows, function (array $a, array $b): int {
+        $order = ['mismatch' => 0, 'missing' => 1, 'match' => 2, 'extra' => 3, 'empty' => 4];
+        return ($order[$a['status']] ?? 9) <=> ($order[$b['status']] ?? 9);
+    });
+
+    // ── 7. Diagnose potential issues ─────────────────────────────────────────
+    $diagnostics = [];
+
+    if (empty($fieldMapping)) {
+        $diagnostics[] = [
+            'severity' => 'critical',
+            'message'  => 'Žádné mapování vlastních polí nenalezeno v databázi (settings.raynet_field_mapping). Vlastní pole se nebudou synchronizovat.',
+        ];
+    }
+
+    if (!empty($fieldMapping) && empty($localCustomFields)) {
+        $diagnostics[] = [
+            'severity' => 'warning',
+            'message'  => 'Mapování obsahuje ' . count($fieldMapping) . ' polí, ale žádné z nich nemá hodnotu ve formuláři. Data formuláře mohou používat jiné názvy polí.',
+        ];
+    }
+
+    // Check for fields in mapping that don't exist in Raynet custom field config
+    $missingInRaynet = [];
+    foreach ($fieldMapping as $formField => $raynetField) {
+        if (!isset($raynetFieldLabels[$raynetField])) {
+            $missingInRaynet[] = "{$formField} → {$raynetField}";
+        }
+    }
+    if (!empty($missingInRaynet)) {
+        $diagnostics[] = [
+            'severity' => 'warning',
+            'message'  => count($missingInRaynet) . ' mapovaných polí neexistuje v Raynet konfiguraci: ' . implode(', ', array_slice($missingInRaynet, 0, 5)) . (count($missingInRaynet) > 5 ? '...' : ''),
+        ];
+    }
+
+    // Check for form fields that have data but aren't in the mapping
+    $customMappingFields = RaynetCustomFields::getAutoMapping();
+    $unmappedWithData = [];
+    foreach ($customMappingFields as $formField => $config) {
+        if ($config['target'] !== 'custom') continue;
+        if (isset($fieldMapping[$formField])) continue; // Already mapped
+        // Check if form has data for this field
+        $flatKey = $formField;
+        if (isset($parsedFormData[$flatKey]) && $parsedFormData[$flatKey] !== '' && $parsedFormData[$flatKey] !== null) {
+            $unmappedWithData[] = $formField;
+        }
+    }
+    if (!empty($unmappedWithData)) {
+        $diagnostics[] = [
+            'severity' => 'info',
+            'message'  => count($unmappedWithData) . ' polí formuláře má data, ale chybí v mapování: ' . implode(', ', array_slice($unmappedWithData, 0, 8)) . (count($unmappedWithData) > 8 ? '...' : ''),
+        ];
+    }
+
+    if (!$companyRaynetId) {
+        $diagnostics[] = [
+            'severity' => 'warning',
+            'message'  => 'Formulář nemá přiřazené Raynet company ID – nelze porovnat s live daty.',
+        ];
+    }
 
     return [
         'success' => true,
         'data' => [
             'meta' => [
-                'form_id'          => $form['id'],
-                'company_name'     => $form['company_name'],
-                'contact_person'   => $form['contact_person'],
-                'raynet_company_id'=> $companyRaynetId,
-                'raynet_person_id' => $personRaynetId,
-                'synced_at'        => $form['raynet_synced_at'],
-                'fetch_error'      => $fetchError,
-                'raynet_linked'    => $companyRaynetId !== null,
+                'form_id'           => $form['id'],
+                'company_name'      => $form['company_name'],
+                'contact_person'    => $form['contact_person'],
+                'raynet_company_id' => $companyRaynetId,
+                'synced_at'         => $form['raynet_synced_at'],
+                'fetch_error'       => $fetchError,
+                'raynet_linked'     => $companyRaynetId !== null,
             ],
-            'company_rows' => $companyRows,
-            'person_rows'  => $personRows,
+            'custom_field_rows' => $customFieldRows,
+            'mapping_info' => [
+                'source'              => $mappingSource,
+                'total_mappings'      => count($fieldMapping),
+                'fields_with_data'    => count($localCustomFields),
+                'raynet_fields_found' => count($raynetCustomFields),
+                'raynet_config_total' => count($raynetFieldLabels),
+            ],
+            'diagnostics' => $diagnostics,
             'summary' => [
-                'company_match'   => countStatus($companyRows, 'match'),
-                'company_mismatch'=> countStatus($companyRows, 'mismatch'),
-                'company_missing' => countStatus($companyRows, 'missing'),
-                'person_match'    => countStatus($personRows,  'match'),
-                'person_mismatch' => countStatus($personRows,  'mismatch'),
-                'person_missing'  => countStatus($personRows,  'missing'),
+                'match'    => countStatus($customFieldRows, 'match'),
+                'mismatch' => countStatus($customFieldRows, 'mismatch'),
+                'missing'  => countStatus($customFieldRows, 'missing'),
+                'extra'    => countStatus($customFieldRows, 'extra'),
+                'total'    => count($customFieldRows),
             ],
         ],
     ];
