@@ -1172,7 +1172,8 @@ header('Content-Type: text/html; charset=utf-8');
                     'EnergyForms - Lokalita': 'border-l-purple-500',
                     'EnergyForms - Technické údaje': 'border-l-orange-500',
                     'EnergyForms - Fakturace': 'border-l-pink-500',
-                    'EnergyForms - Metadata': 'border-l-gray-500'
+                    'EnergyForms - Metadata': 'border-l-gray-500',
+                    'EnergyForms - Přílohy': 'border-l-teal-500'
                 };
                 
                 const groupIcons = {
@@ -1182,7 +1183,8 @@ header('Content-Type: text/html; charset=utf-8');
                     'EnergyForms - Lokalita': '📍',
                     'EnergyForms - Technické údaje': '🔧',
                     'EnergyForms - Fakturace': '💰',
-                    'EnergyForms - Metadata': '📋'
+                    'EnergyForms - Metadata': '📋',
+                    'EnergyForms - Přílohy': '📎'
                 };
                 
                 for (const [groupName, fields] of Object.entries(customByGroup)) {
@@ -1375,46 +1377,89 @@ header('Content-Type: text/html; charset=utf-8');
         }
         
         async function createAllCustomFields() {
-            if (!confirm('Opravdu chcete vytvořit všechna vlastní pole v Raynet?\n\nToto vytvoří ' + 
-                         document.getElementById('stat-custom').textContent + ' nových polí.')) {
+            const customByGroup = autoMappingData?.custom_by_group;
+            if (!customByGroup || Object.keys(customByGroup).length === 0) {
+                showToast('Žádné skupiny polí k vytvoření', 'info');
                 return;
             }
-            
+
+            const groups = Object.entries(customByGroup);
+            const totalFields = groups.reduce((sum, [, fields]) => sum + Object.keys(fields).length, 0);
+
+            if (!confirm(`Vytvořit všechna vlastní pole v Raynet?\n\nBude vytvořeno ${totalFields} polí v ${groups.length} skupinách.\nSkupiny se zpracují postupně.`)) {
+                return;
+            }
+
             const btn = document.getElementById('create-all-btn');
             btn.disabled = true;
-            btn.innerHTML = '⏳ Vytvářím pole...';
-            
-            try {
-                // Get all custom fields to create
-                const customFields = Object.keys(autoMappingData.by_target.custom || {});
-                
-                if (customFields.length === 0) {
-                    showToast('Žádná pole k vytvoření', 'info');
-                    return;
+
+            let totalCreated = 0;
+            let totalSkipped = 0;
+            let totalErrors = 0;
+            const allErrors = [];
+
+            for (let i = 0; i < groups.length; i++) {
+                const [groupName, fields] = groups[i];
+                const fieldNames = Object.keys(fields);
+                const groupLabel = groupName.replace('EnergyForms - ', '');
+
+                btn.innerHTML = `⏳ ${i + 1}/${groups.length}: ${groupLabel} (${fieldNames.length} polí)...`;
+
+                try {
+                    const data = await apiCall({
+                        action: 'create_fields_batch',
+                        entity_type: 'Company',
+                        form_fields: fieldNames
+                    }, true);
+
+                    if (data.success && data.data) {
+                        const r = data.data;
+                        totalCreated += (r.created || []).length;
+                        totalSkipped += (r.skipped || []).length;
+                        totalErrors += (r.errors || []).length;
+                        if (r.errors && r.errors.length > 0) {
+                            r.errors.forEach(err => allErrors.push({ group: groupLabel, ...err }));
+                        }
+                        showToast(`✅ ${groupLabel}: ${(r.created||[]).length} vytvořeno, ${(r.skipped||[]).length} přeskočeno`, 'success');
+                    } else {
+                        totalErrors += fieldNames.length;
+                        allErrors.push({ group: groupLabel, error: data.error || 'Neznámá chyba' });
+                        showToast(`❌ ${groupLabel}: ${data.error || 'Chyba'}`, 'error');
+                    }
+                } catch (error) {
+                    totalErrors += fieldNames.length;
+                    allErrors.push({ group: groupLabel, error: error.message });
+                    showToast(`❌ ${groupLabel}: ${error.message}`, 'error');
                 }
-                
-                const data = await apiCall({
-                    action: 'create_fields_batch',
-                    entity_type: 'Company',
-                    form_fields: customFields
-                    // group_name not passed - will use each field's defined group
-                }, true);
-                
-                if (data.success) {
-                    showToast(data.message, 'success');
-                    // Reload Raynet fields to show newly created ones
-                    await loadRaynetFields(true);
-                    await loadMapping();
-                } else {
-                    showToast('Chyba: ' + (data.error || 'Neznámá chyba'), 'error');
+
+                // Small delay between groups to avoid rate limiting
+                if (i < groups.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 }
-            } catch (error) {
-                console.error('Failed to create fields', error);
-                showToast('Chyba při vytváření: ' + error.message, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '⚡ Vytvořit všechna pole v Raynet';
             }
+
+            // Final summary
+            let summary = `Hotovo! Vytvořeno: ${totalCreated}, Přeskočeno: ${totalSkipped}, Chyby: ${totalErrors}`;
+            if (allErrors.length > 0) {
+                console.error('Field creation errors:', allErrors);
+                summary += '\n\nChyby:';
+                allErrors.slice(0, 10).forEach(err => {
+                    summary += `\n• ${err.group}: ${err.label || err.field || ''} - ${err.error}`;
+                });
+                if (allErrors.length > 10) {
+                    summary += `\n... a ${allErrors.length - 10} dalších (viz konzole)`;
+                }
+                showToast(summary, 'warning');
+            } else {
+                showToast(summary, 'success');
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '⚡ Vytvořit všechna pole v Raynet';
+
+            // Reload data
+            await loadRaynetFields(true);
+            await loadMapping();
         }
         
         async function createGroupFields(groupName) {
@@ -1422,6 +1467,15 @@ header('Content-Type: text/html; charset=utf-8');
                 return;
             }
             
+            // Find and disable the button for this group
+            const groupButtons = document.querySelectorAll('button[onclick*="createGroupFields"]');
+            let btn = null;
+            groupButtons.forEach(b => {
+                if (b.onclick?.toString().includes(groupName) || b.textContent.includes('Vytvořit skupinu')) {
+                    // Simple heuristic: disable all group buttons during creation
+                }
+            });
+
             try {
                 // Get fields for this group
                 const groupFields = autoMappingData.custom_by_group[groupName];
@@ -1431,7 +1485,8 @@ header('Content-Type: text/html; charset=utf-8');
                 }
                 
                 const fieldNames = Object.keys(groupFields);
-                showToast(`Vytvářím ${fieldNames.length} polí...`, 'info');
+                const groupLabel = groupName.replace('EnergyForms - ', '');
+                showToast(`⏳ Vytvářím ${fieldNames.length} polí ve skupině "${groupLabel}"...`, 'info');
                 
                 const data = await apiCall({
                     action: 'create_fields_batch',
@@ -1440,13 +1495,12 @@ header('Content-Type: text/html; charset=utf-8');
                 }, true);
                 
                 if (data.success) {
-                    // Show detailed result with errors if any
                     const result = data.data;
-                    let message = data.message;
+                    let message = `${groupLabel}: ${(result.created||[]).length} vytvořeno, ${(result.skipped||[]).length} přeskočeno`;
                     
                     if (result.errors && result.errors.length > 0) {
                         console.error('Field creation errors:', result.errors);
-                        message += '\n\nChyby:';
+                        message += `\n\n${result.errors.length} chyb:`;
                         result.errors.forEach(err => {
                             message += `\n• ${err.label || err.field}: ${err.error}`;
                         });
@@ -1498,9 +1552,10 @@ header('Content-Type: text/html; charset=utf-8');
             `;
             document.body.appendChild(toast);
             
+            const dismissTime = message.length > 100 ? 10000 : 5000;
             setTimeout(() => {
                 if (toast.parentElement) toast.remove();
-            }, 5000);
+            }, dismissTime);
         }
     </script>
 </body>
