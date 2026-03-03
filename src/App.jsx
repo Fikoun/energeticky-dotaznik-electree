@@ -19,7 +19,7 @@ import { clearSessionTempId } from './hooks/useFileUpload'
 import { Battery, Zap } from 'lucide-react'
 import { saveFormData, loadFormData, isOffline, addToSubmissionQueue, initializeOfflineSupport } from './utils/formStorage'
 import { uploadFiles } from './utils/fileUpload'
-import { getTestFormData } from './utils/testFormData'
+import { getTestFormData, getTestStepNotes } from './utils/testFormData'
 
 const TOTAL_STEPS = 8
 
@@ -373,13 +373,15 @@ function App() {
     if (!user || user.role !== 'admin') return
     const testData = getTestFormData()
     methods.reset(testData)
+    // Also set step notes (sent as stepNotes.1..8 to Raynet)
+    setStepNotes(getTestStepNotes())
     // Mark all steps as visited so admin can navigate freely
     const allSteps = new Set()
     for (let i = 1; i <= TOTAL_STEPS; i++) allSteps.add(i)
     setVisitedSteps(allSteps)
     setCurrentStep(1)
     window.scrollTo({ top: 0, behavior: 'smooth' })
-    console.log('Form prefilled with test data')
+    console.log('Form prefilled with test data (all 122 Raynet custom fields + 8 step notes)')
   }
 
   const handleLogout = async () => {
