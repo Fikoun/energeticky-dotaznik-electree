@@ -770,6 +770,31 @@ function formatFieldValue($key, $value) {
         return '<div style="background: #e8f5e8; padding: 8px 12px; border-radius: 5px; color: ' . $color . '; font-weight: 500; display: inline-block;">' . htmlspecialchars($translated) . '</div>';
     }
     
+    // additionalContacts — array of contact person objects
+    if ($key === 'additionalContacts' && is_array($value)) {
+        $contacts = array_values(array_filter($value, fn($c) => is_array($c) && (!empty($c['name']) || !empty($c['email']))));
+        if (empty($contacts)) return '<span style="color: #999; font-style: italic;">Nevyplněno</span>';
+        $html = '<div style="display: flex; flex-direction: column; gap: 10px;">';
+        foreach ($contacts as $i => $contact) {
+            $name     = htmlspecialchars($contact['name']     ?? '');
+            $position = htmlspecialchars($contact['position'] ?? '');
+            $phone    = htmlspecialchars($contact['phone']    ?? '');
+            $email    = htmlspecialchars($contact['email']    ?? '');
+            $primary  = !empty($contact['isPrimary']);
+            $html .= '<div style="background: #f0f4ff; border-left: 4px solid #4f6ef7; border-radius: 6px; padding: 12px;">';
+            $html .= '<div style="font-weight: 700; color: #222; margin-bottom: 6px;">';
+            $html .= ($i + 1) . '. ' . ($name ?: '<em style="color:#999;">Bez jména</em>');
+            if ($primary) $html .= ' <span style="background:#4f6ef7;color:white;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px;">Hlavní</span>';
+            $html .= '</div>';
+            if ($position) $html .= '<div style="font-size:13px;color:#555;"><strong>Pozice:</strong> ' . $position . '</div>';
+            if ($phone)    $html .= '<div style="font-size:13px;color:#555;"><strong>Telefon:</strong> <a href="tel:' . $phone . '" style="color:#0066cc;">' . $phone . '</a></div>';
+            if ($email)    $html .= '<div style="font-size:13px;color:#555;"><strong>E-mail:</strong> <a href="mailto:' . $email . '" style="color:#0066cc;">' . $email . '</a></div>';
+            $html .= '</div>';
+        }
+        $html .= '</div>';
+        return $html;
+    }
+
     // Generic arrays — normalize (handles both assoc checkbox groups and indexed lists)
     if (is_array($value)) {
         $items = normalizeCheckboxGroup($value);
@@ -1016,6 +1041,18 @@ function showConfirmationForm($form, $formData) {
         <div class="header">
             <h1><i class="fas fa-lock"></i> Potvrzení údajů a souhlas GDPR</h1>
             <p style="margin: 0; font-size: 18px; opacity: 0.95;">Electree - Bateriové systémy</p>
+        </div>
+
+        <div style="background: linear-gradient(135deg, #fff8e1 0%, #fff3cd 100%); border: 2px solid #ffc107; border-radius: 12px; padding: 20px 25px; margin-bottom: 25px; display: flex; align-items: flex-start; gap: 15px; box-shadow: 0 4px 12px rgba(255,193,7,0.2);">
+            <div style="font-size: 32px; line-height: 1; flex-shrink: 0;">📋</div>
+            <div>
+                <div style="font-size: 18px; font-weight: 700; color: #856404; margin-bottom: 6px;">Zkontrolujte si své údaje</div>
+                <div style="font-size: 15px; color: #6d5304; line-height: 1.6;">
+                    Níže jsou zobrazeny všechny informace, které jste vyplnili v dotazníku. 
+                    Pečlivě si je zkontrolujte a pokud jsou správné, 
+                    <strong>posuňte se na konec stránky a potvrďte souhlas se zpracováním dat podle GDPR</strong>.
+                </div>
+            </div>
         </div>
 
         <div class="info-box">

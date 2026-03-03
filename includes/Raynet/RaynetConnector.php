@@ -195,58 +195,62 @@ class RaynetConnector
             
             error_log("Raynet sync: Company synced with ID {$result['company_id']}");
             
-            // 2. Sync primary contact person if we have contact data
-            $hasContactPerson = !empty($parsedFormData['contactPerson']) 
-                || !empty($parsedFormData['contact_person']);
-            
-            if ($hasContactPerson) {
-                try {
-                    $person = $this->person();
-                    $person->smartSync($parsedFormData, $formId, $result['company_id']);
-                    $result['person_id'] = $person->getId();
-                    error_log("Raynet sync: Primary person synced with ID {$result['person_id']}");
-                } catch (\Exception $e) {
-                    error_log("Raynet sync: Failed to sync primary person: " . $e->getMessage());
-                    // Continue - person sync failure shouldn't break the whole sync
-                }
-            }
-            
-            // 3. Sync additional contacts
-            $additionalContacts = $parsedFormData['additionalContacts'] ?? [];
-            if (!empty($additionalContacts) && is_array($additionalContacts)) {
-                $result['additional_contacts'] = [];
-                
-                foreach ($additionalContacts as $index => $contactData) {
-                    // Skip empty contacts
-                    if (empty($contactData['name']) && empty($contactData['email'])) {
-                        continue;
-                    }
-                    
-                    try {
-                        $additionalPerson = $this->person();
-                        $additionalPerson->syncAdditionalContact(
-                            $contactData,
-                            $formId,
-                            $index,
-                            $result['company_id']
-                        );
-                        
-                        $result['additional_contacts'][] = [
-                            'index' => $index,
-                            'person_id' => $additionalPerson->getId(),
-                            'name' => $contactData['name'] ?? '',
-                            'isPrimary' => $contactData['isPrimary'] ?? false
-                        ];
-                        
-                        error_log("Raynet sync: Additional contact {$index} synced with ID {$additionalPerson->getId()}");
-                    } catch (\Exception $e) {
-                        error_log("Raynet sync: Failed to sync additional contact {$index}: " . $e->getMessage());
-                        // Continue with other contacts
-                    }
-                }
-                
-                error_log("Raynet sync: Synced " . count($result['additional_contacts']) . " additional contacts");
-            }
+            // TODO: Person sync is disabled to prevent duplicate person objects being created in Raynet.
+            // Each sync was re-adding the contact person to the company's relation list, causing duplicates.
+            // Re-enable and fix deduplication logic before re-implementing person sync.
+            //
+            // // 2. Sync primary contact person if we have contact data
+            // $hasContactPerson = !empty($parsedFormData['contactPerson'])
+            //     || !empty($parsedFormData['contact_person']);
+            //
+            // if ($hasContactPerson) {
+            //     try {
+            //         $person = $this->person();
+            //         $person->smartSync($parsedFormData, $formId, $result['company_id']);
+            //         $result['person_id'] = $person->getId();
+            //         error_log("Raynet sync: Primary person synced with ID {$result['person_id']}");
+            //     } catch (\Exception $e) {
+            //         error_log("Raynet sync: Failed to sync primary person: " . $e->getMessage());
+            //         // Continue - person sync failure shouldn't break the whole sync
+            //     }
+            // }
+            //
+            // // 3. Sync additional contacts
+            // $additionalContacts = $parsedFormData['additionalContacts'] ?? [];
+            // if (!empty($additionalContacts) && is_array($additionalContacts)) {
+            //     $result['additional_contacts'] = [];
+            //
+            //     foreach ($additionalContacts as $index => $contactData) {
+            //         // Skip empty contacts
+            //         if (empty($contactData['name']) && empty($contactData['email'])) {
+            //             continue;
+            //         }
+            //
+            //         try {
+            //             $additionalPerson = $this->person();
+            //             $additionalPerson->syncAdditionalContact(
+            //                 $contactData,
+            //                 $formId,
+            //                 $index,
+            //                 $result['company_id']
+            //             );
+            //
+            //             $result['additional_contacts'][] = [
+            //                 'index' => $index,
+            //                 'person_id' => $additionalPerson->getId(),
+            //                 'name' => $contactData['name'] ?? '',
+            //                 'isPrimary' => $contactData['isPrimary'] ?? false
+            //             ];
+            //
+            //             error_log("Raynet sync: Additional contact {$index} synced with ID {$additionalPerson->getId()}");
+            //         } catch (\Exception $e) {
+            //             error_log("Raynet sync: Failed to sync additional contact {$index}: " . $e->getMessage());
+            //             // Continue with other contacts
+            //         }
+            //     }
+            //
+            //     error_log("Raynet sync: Synced " . count($result['additional_contacts']) . " additional contacts");
+            // }
             
             // 4. Update sync status in database
             $result['synced_at'] = date('Y-m-d H:i:s');
