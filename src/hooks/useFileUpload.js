@@ -40,9 +40,13 @@ export const useFileUpload = (formId, fieldName) => {
 
   // Track previous formId to detect changes from temp to permanent
   const prevFormIdRef = useRef(null)
+  
+  // Track whether we recently uploaded files (to avoid re-fetch race conditions)
+  const recentUploadRef = useRef(false)
 
   // Sync with backend on mount and when formId changes - fetch existing files
   useEffect(() => {
+    let cancelled = false
     const prevFormId = prevFormIdRef.current
     prevFormIdRef.current = effectiveFormId
     
@@ -60,9 +64,15 @@ export const useFileUpload = (formId, fieldName) => {
         })
       }
       
-      // Always fetch files when formId changes
+      // If we recently uploaded a file and the formId just changed (temp→permanent),
+      // delay the re-fetch to give the server time to migrate files
+      const delay = (changedFromTempToPermanent && recentUploadRef.current) ? 2000 : 0
+      
       const fetchFiles = async () => {
-        setIsLoading(true)
+        // Don't show loading spinner if we already have files (avoid UI flash)
+        if (uploadedFiles.length === 0) {
+          setIsLoading(true)
+        }
         try {
           const params = new URLSearchParams({
             formId: effectiveFormId,
@@ -71,24 +81,42 @@ export const useFileUpload = (formId, fieldName) => {
           
           const response = await fetch(`/public/get-files.php?${params}`)
           
+          if (cancelled) return
+          
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`)
           }
 
           const result = await response.json()
           
+          if (cancelled) return
+          
           if (result.success && result.files) {
+            // If we have local files and server returned empty (migration may still be in progress),
+            // keep local files to avoid UI flash
+            if (result.files.length === 0 && uploadedFiles.length > 0 && changedFromTempToPermanent) {
+              console.log('Server returned empty files during migration, keeping local state')
+              return
+            }
             setUploadedFiles(result.files)
           }
         } catch (error) {
           console.error('Error fetching existing files:', error)
           // Don't set error - this is a background sync
         } finally {
-          setIsLoading(false)
+          if (!cancelled) {
+            setIsLoading(false)
+          }
         }
       }
       
-      fetchFiles()
+      if (delay > 0) {
+        const timer = setTimeout(fetchFiles, delay)
+        return () => { cancelled = true; clearTimeout(timer) }
+      } else {
+        fetchFiles()
+        return () => { cancelled = true }
+      }
     }
   }, [effectiveFormId, fieldName])
 
@@ -162,6 +190,10 @@ export const useFileUpload = (formId, fieldName) => {
 
       // Update uploaded files list
       setUploadedFiles(prev => [...prev, ...result.files])
+      
+      // Mark that we recently uploaded files (to protect against race conditions)
+      recentUploadRef.current = true
+      setTimeout(() => { recentUploadRef.current = false }, 10000)
       
       return result
 

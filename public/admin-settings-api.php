@@ -411,6 +411,74 @@ try {
             exit;
         }
 
+    // ===== NAČTENÍ RAYNET DUPLICATE NASTAVENÍ =====
+    } elseif ($action === 'get_raynet_duplicate_settings') {
+        try {
+            $pdo = getDatabaseConnection();
+            $stmt = $pdo->prepare("SELECT `key`, `value` FROM settings WHERE `key` IN ('raynet_force_duplicates', 'raynet_duplicate_notify_email')");
+            $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $settingsMap = [];
+            foreach ($rows as $row) {
+                $settingsMap[$row['key']] = $row['value'];
+            }
+
+            ob_end_clean();
+            echo json_encode(['success' => true, 'data' => $settingsMap]);
+            exit;
+        } catch (Exception $e) {
+            error_log("Error loading Raynet duplicate settings: " . $e->getMessage());
+            ob_end_clean();
+            echo json_encode(['success' => false, 'message' => 'Chyba při načítání nastavení']);
+            exit;
+        }
+
+    // ===== ULOŽENÍ RAYNET DUPLICATE NASTAVENÍ =====
+    } elseif ($action === 'save_raynet_duplicate_settings') {
+        if (!isset($data['csrf_token']) || !validateCSRFToken($data['csrf_token'])) {
+            ob_end_clean();
+            echo json_encode(['success' => false, 'message' => 'Neplatný CSRF token']);
+            exit;
+        }
+
+        $settings = $data['settings'] ?? [];
+        $allowedKeys = ['raynet_force_duplicates', 'raynet_duplicate_notify_email'];
+
+        try {
+            $pdo = getDatabaseConnection();
+
+            // Ensure settings table exists
+            $pdo->exec("CREATE TABLE IF NOT EXISTS settings (`key` VARCHAR(100) PRIMARY KEY, `value` TEXT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
+
+            $pdo->beginTransaction();
+
+            foreach ($settings as $key => $value) {
+                if (!in_array($key, $allowedKeys, true)) continue;
+                $sanitized = ($key === 'raynet_duplicate_notify_email')
+                    ? sanitizeInput($value, 'email')
+                    : sanitizeInput($value);
+
+                $stmt = $pdo->prepare("
+                    INSERT INTO settings (`key`, `value`) VALUES (?, ?)
+                    ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)
+                ");
+                $stmt->execute([$key, $sanitized]);
+            }
+
+            $pdo->commit();
+
+            ob_end_clean();
+            echo json_encode(['success' => true, 'message' => 'Nastavení duplicit uloženo']);
+            exit;
+        } catch (Exception $e) {
+            if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+            error_log("Error saving Raynet duplicate settings: " . $e->getMessage());
+            ob_end_clean();
+            echo json_encode(['success' => false, 'message' => 'Chyba při ukládání nastavení']);
+            exit;
+        }
+
     // ===== NEPLATNÁ AKCE =====
     } else {
         ob_end_clean();

@@ -131,7 +131,41 @@ function checkAndSyncFormToRaynet(array $formData, string|int $formId, \PDO $pdo
         ]);
 
         if ($existing) {
-            // Duplicate / existing company found – do NOT sync automatically
+            // --- Check admin setting: should we force-sync duplicates? ---
+            $forceDuplicates = false;
+            $notifyEmail = '';
+            try {
+                $settingsStmt = $pdo->prepare("SELECT `key`, `value` FROM settings WHERE `key` IN ('raynet_force_duplicates', 'raynet_duplicate_notify_email')");
+                $settingsStmt->execute();
+                foreach ($settingsStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+                    if ($row['key'] === 'raynet_force_duplicates') $forceDuplicates = ($row['value'] === '1');
+                    if ($row['key'] === 'raynet_duplicate_notify_email') $notifyEmail = $row['value'] ?? '';
+                }
+            } catch (\Exception $e) {
+                error_log("Raynet checkAndSync: failed to read duplicate settings: " . $e->getMessage());
+            }
+
+            if ($forceDuplicates) {
+                // Admin chose to auto-sync even when duplicates exist – update existing company
+                error_log("Raynet checkAndSync: duplicate found for form {$formId} but force_duplicates is ON – syncing anyway");
+                $result = $connector->syncForm($formData, $formId);
+
+                if ($result['success']) {
+                    $stmt = $pdo->prepare("UPDATE forms SET raynet_sync_status = 'synced' WHERE id = ?");
+                    $stmt->execute([$formId]);
+                    return [
+                        'status'     => 'synced',
+                        'company_id' => $result['company_id'],
+                        'person_id'  => $result['person_id'],
+                    ];
+                }
+
+                $stmt = $pdo->prepare("UPDATE forms SET raynet_sync_status = 'error' WHERE id = ?");
+                $stmt->execute([$formId]);
+                return ['status' => 'error', 'error' => $result['error'] ?? 'Unknown sync error'];
+            }
+
+            // --- Not forcing: flag for manual approval and notify admin ---
             $matchInfo = [
                 'raynet_company_id' => $existing['id'],
                 'matched_by'        => $existing['matched_by'],
@@ -150,6 +184,11 @@ function checkAndSyncFormToRaynet(array $formData, string|int $formId, \PDO $pdo
             $stmt->execute([$errorMsg, $formId]);
 
             error_log("Raynet checkAndSync: duplicate found for form {$formId} – matched by {$existing['matched_by']}, Raynet ID {$existing['id']}");
+
+            // Send notification email to admin
+            if (!empty($notifyEmail)) {
+                sendDuplicateNotificationEmail($notifyEmail, $formId, $parsed, $existing);
+            }
 
             return [
                 'status'  => 'pending_approval',
@@ -215,5 +254,59 @@ function checkAndSyncFormToRaynet(array $formData, string|int $formId, \PDO $pdo
         }
 
         return ['status' => 'error', 'error' => 'Unexpected error'];
+    }
+}
+
+/**
+ * Send notification email to admin about a duplicate company found during sync.
+ */
+function sendDuplicateNotificationEmail(string $email, string|int $formId, array $formData, array $existing): void
+{
+    $syncUrl = "https://ed.electree.cz/admin-sync.php";
+    $companyName = $formData['companyName'] ?? 'Neznámá firma';
+    $ico = $formData['ico'] ?? 'N/A';
+    $matchedBy = $existing['matched_by'] ?? '?';
+    $raynetId = $existing['id'] ?? '?';
+    $raynetName = $existing['data']['name'] ?? '';
+
+    $subject = "Raynet sync – duplicitní firma pro formulář #{$formId}";
+    $body = "
+        <h2>Nalezena duplicitní firma při synchronizaci</h2>
+        <p>Při automatické synchronizaci formuláře <strong>#{$formId}</strong> do Raynet CRM byla nalezena existující firma.</p>
+
+        <h3>Formulář:</h3>
+        <ul>
+            <li><strong>ID:</strong> " . htmlspecialchars((string)$formId) . "</li>
+            <li><strong>Firma:</strong> " . htmlspecialchars($companyName) . "</li>
+            <li><strong>IČO:</strong> " . htmlspecialchars($ico) . "</li>
+        </ul>
+
+        <h3>Existující firma v Raynet:</h3>
+        <ul>
+            <li><strong>Raynet ID:</strong> " . htmlspecialchars((string)$raynetId) . "</li>
+            <li><strong>Název:</strong> " . htmlspecialchars($raynetName) . "</li>
+            <li><strong>Shoda:</strong> " . htmlspecialchars($matchedBy) . "</li>
+        </ul>
+
+        <p>Synchronizace byla pozastavena a čeká na vaše manuální schválení.</p>
+        <p style='margin: 20px 0;'>
+            <a href='" . htmlspecialchars($syncUrl) . "' style='background-color: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;'>
+                Otevřít správu synchronizace
+            </a>
+        </p>
+    ";
+
+    $headers = [
+        'MIME-Version: 1.0',
+        'Content-type: text/html; charset=utf-8',
+        'From: noreply@electree.cz',
+        'Reply-To: info@electree.cz',
+    ];
+
+    $sent = mail($email, $subject, $body, implode("\r\n", $headers));
+    if (!$sent) {
+        error_log("Failed to send duplicate notification email to {$email} for form {$formId}");
+    } else {
+        error_log("Duplicate notification email sent to {$email} for form {$formId}");
     }
 }

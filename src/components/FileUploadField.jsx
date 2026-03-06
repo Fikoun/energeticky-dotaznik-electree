@@ -64,7 +64,9 @@ const FileUploadField = ({
         const result = await uploadFiles(files)
         
         // Update form data with uploaded file information
-        setValue(name, uploadedFiles.map(f => ({
+        // Use result.files from the upload response instead of stale uploadedFiles state
+        const allFiles = [...uploadedFiles, ...(result?.files || [])]
+        setValue(name, allFiles.map(f => ({
           id: f.id,
           name: f.originalName,
           size: f.size,

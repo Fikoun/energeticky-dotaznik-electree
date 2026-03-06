@@ -381,6 +381,49 @@ header('Content-Type: text/html; charset=utf-8');
                             </button>
                         </div>
                     </form>
+
+                    <!-- Raynet Duplicate Sync Settings -->
+                    <div class="mt-8 border-t pt-6">
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">Raynet – duplicitní firmy</h3>
+                        <p class="text-sm text-gray-500 mb-6">Nastavení chování při nalezení existující firmy v Raynet CRM během automatické synchronizace.</p>
+
+                        <form id="raynetDuplicateSettingsForm" onsubmit="saveRaynetDuplicateSettings(event)">
+                            <div class="space-y-5">
+                                <div class="flex items-start">
+                                    <div class="flex items-center h-5">
+                                        <input type="checkbox" id="raynet_force_duplicates" name="raynet_force_duplicates"
+                                               class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                                               onchange="toggleDuplicateEmailField()">
+                                    </div>
+                                    <div class="ml-3">
+                                        <label for="raynet_force_duplicates" class="text-sm font-medium text-gray-900">
+                                            Automaticky synchronizovat i při nalezení duplicity
+                                        </label>
+                                        <p class="text-xs text-gray-500 mt-1">
+                                            Pokud je zaškrtnuto, duplicitní firmy budou aktualizovány automaticky. Pokud ne, synchronizace se pozastaví a čeká na manuální schválení.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div id="duplicate_notification_section">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">E-mail pro notifikace o duplicitách</label>
+                                    <input type="email" id="raynet_duplicate_notify_email" name="raynet_duplicate_notify_email"
+                                           placeholder="admin@electree.cz"
+                                           class="w-full max-w-md px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                    <p class="text-xs text-gray-500 mt-1">
+                                        Na tento e-mail bude zaslán odkaz na správu synchronizace, pokud bude nalezena duplicitní firma.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="mt-6 flex justify-end">
+                                <button type="submit"
+                                        class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                    Uložit nastavení duplicit
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
 
@@ -542,7 +585,7 @@ header('Content-Type: text/html; charset=utf-8');
 
         // Secure API call with CSRF protection
         async function secureApiCall(requestData) {
-            const modifyingActions = ['create_role', 'update_role', 'delete_role', 'save_settings'];
+            const modifyingActions = ['create_role', 'update_role', 'delete_role', 'save_settings', 'save_raynet_duplicate_settings'];
             
             if (modifyingActions.includes(requestData.action)) {
                 if (!csrfToken) {
@@ -738,6 +781,56 @@ header('Content-Type: text/html; charset=utf-8');
             showToast('Bezpečnostní nastavení uloženo', 'success');
         }
 
+        // --- Raynet duplicate settings ---
+        function toggleDuplicateEmailField() {
+            const checked = document.getElementById('raynet_force_duplicates').checked;
+            const section = document.getElementById('duplicate_notification_section');
+            // Show email field only when NOT forcing (i.e. when duplicates need manual approval)
+            section.style.display = checked ? 'none' : 'block';
+        }
+
+        async function loadRaynetDuplicateSettings() {
+            try {
+                const result = await secureApiCall({ action: 'get_raynet_duplicate_settings' });
+                if (result.success && result.data) {
+                    document.getElementById('raynet_force_duplicates').checked = result.data.raynet_force_duplicates === '1';
+                    document.getElementById('raynet_duplicate_notify_email').value = result.data.raynet_duplicate_notify_email || '';
+                    toggleDuplicateEmailField();
+                }
+            } catch (e) {
+                log.error('Failed to load Raynet duplicate settings', e);
+            }
+        }
+
+        async function saveRaynetDuplicateSettings(event) {
+            event.preventDefault();
+            const forceDuplicates = document.getElementById('raynet_force_duplicates').checked ? '1' : '0';
+            const notifyEmail = document.getElementById('raynet_duplicate_notify_email').value.trim();
+
+            if (forceDuplicates === '0' && !notifyEmail) {
+                showToast('Zadejte e-mail pro notifikace o duplicitách', 'error');
+                return;
+            }
+
+            try {
+                const result = await secureApiCall({
+                    action: 'save_raynet_duplicate_settings',
+                    settings: {
+                        raynet_force_duplicates: forceDuplicates,
+                        raynet_duplicate_notify_email: notifyEmail
+                    }
+                });
+                if (result.success) {
+                    showToast('Nastavení duplicit uloženo', 'success');
+                } else {
+                    showToast(result.message || 'Chyba při ukládání', 'error');
+                }
+            } catch (e) {
+                log.error('Failed to save Raynet duplicate settings', e);
+                showToast('Chyba při ukládání nastavení', 'error');
+            }
+        }
+
         async function testEmailConnection() {
             showToast('Testování email připojení...', 'info');
             // Implementation will be in API
@@ -775,6 +868,9 @@ header('Content-Type: text/html; charset=utf-8');
                 
                 // Show default tab
                 showTab('roles');
+
+                // Load Raynet duplicate settings (for security tab)
+                await loadRaynetDuplicateSettings();
                 
                 log.info('Settings page initialized successfully');
             } catch (error) {

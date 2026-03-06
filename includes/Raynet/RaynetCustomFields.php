@@ -1074,12 +1074,6 @@ class RaynetCustomFields
             'suggestedName' => 'ef_connection_app',
             'description' => 'Žádost o připojení - odkaz na soubor',
         ],
-        'auditDocuments' => [
-            'target' => 'custom',
-            'group' => self::GROUP_ATTACHMENTS,
-            'suggestedName' => 'ef_audit_docs',
-            'description' => 'Dokumenty auditu - odkazy na soubory',
-        ],
     ];
     
     // EnergyForms field definitions for mapping
@@ -1268,7 +1262,6 @@ class RaynetCustomFields
         'cogenerationPhotos' => ['label' => 'Fotografie kogenerace', 'type' => self::TYPE_FILE_LINKS, 'step' => 8, 'group' => self::GROUP_ATTACHMENTS],
         'connectionContractFile' => ['label' => 'Smlouva o připojení', 'type' => self::TYPE_FILE_LINKS, 'step' => 6, 'group' => self::GROUP_ATTACHMENTS],
         'connectionApplicationFile' => ['label' => 'Žádost o připojení', 'type' => self::TYPE_FILE_LINKS, 'step' => 6, 'group' => self::GROUP_ATTACHMENTS],
-        'auditDocuments' => ['label' => 'Dokumenty auditu', 'type' => self::TYPE_FILE_LINKS, 'step' => 3, 'group' => self::GROUP_ATTACHMENTS],
     ];
     
     /**
