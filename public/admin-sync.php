@@ -142,7 +142,7 @@ header('Content-Type: text/html; charset=utf-8');
             </div>
 
             <!-- Stats Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                 <!-- Synced -->
                 <div class="bg-white rounded-lg shadow p-5">
                     <div class="flex items-center">
@@ -165,6 +165,19 @@ header('Content-Type: text/html; charset=utf-8');
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-500">Ve frontě</p>
                             <p class="text-2xl font-semibold text-yellow-600" id="stat-pending">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pending Approval -->
+                <div class="bg-white rounded-lg shadow p-5 cursor-pointer hover:shadow-md transition-shadow" onclick="document.getElementById('filter-status').value='pending_approval'; loadLocalForms(1);">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0 bg-orange-100 rounded-md p-3">
+                            <span class="text-2xl">⚠️</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Čeká na schválení</p>
+                            <p class="text-2xl font-semibold text-orange-600" id="stat-pending-approval">-</p>
                         </div>
                     </div>
                 </div>
@@ -243,6 +256,7 @@ header('Content-Type: text/html; charset=utf-8');
                                     <option value="all">Všechny</option>
                                     <option value="synced">Synchronizované</option>
                                     <option value="pending">Čekající</option>
+                                    <option value="pending_approval">Čeká na schválení</option>
                                     <option value="error">S chybou</option>
                                 </select>
                             </div>
@@ -542,6 +556,7 @@ header('Content-Type: text/html; charset=utf-8');
             // Local stats (removed stat-local-total as card was removed)
             document.getElementById('stat-synced').textContent = stats.local.synced_forms;
             document.getElementById('stat-pending').textContent = stats.local.pending_forms;
+            document.getElementById('stat-pending-approval').textContent = stats.local.pending_approval_forms || 0;
             document.getElementById('stat-errors').textContent = stats.local.error_forms;
             
             // Last sync time

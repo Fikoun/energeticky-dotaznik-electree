@@ -4,6 +4,14 @@ header('Content-Type: text/html; charset=utf-8');
 // Database configuration - use centralized config
 require_once __DIR__ . '/../config/database.php';
 
+// Load Raynet sync helper (optional - fails silently if not configured)
+$raynetSyncEnabled = false;
+$raynetHelperPath = __DIR__ . '/../includes/raynet-sync-helpers.php';
+if (file_exists($raynetHelperPath)) {
+    require_once $raynetHelperPath;
+    $raynetSyncEnabled = function_exists('isRaynetConfigured') && isRaynetConfigured();
+}
+
 $token = $_GET['token'] ?? '';
 
 if (empty($token)) {
@@ -33,11 +41,28 @@ try {
         // Send notification email to admin
         sendAdminNotification($form, $formData);
 
-        // Raynet is not triggered here; default to manual processing flag
+        // Attempt Raynet sync now that GDPR is confirmed
         $raynetSuccess = false;
+        $raynetPendingApproval = false;
+        if ($raynetSyncEnabled) {
+            try {
+                $syncResult = checkAndSyncFormToRaynet($form, $form['id'], $pdo);
+                if ($syncResult['status'] === 'synced') {
+                    $raynetSuccess = true;
+                    error_log("GDPR confirm: Raynet sync successful for form {$form['id']}");
+                } elseif ($syncResult['status'] === 'pending_approval') {
+                    $raynetPendingApproval = true;
+                    error_log("GDPR confirm: Raynet sync pending approval for form {$form['id']}: " . ($syncResult['message'] ?? ''));
+                } else {
+                    error_log("GDPR confirm: Raynet sync error for form {$form['id']}: " . ($syncResult['error'] ?? 'unknown'));
+                }
+            } catch (Exception $e) {
+                error_log("GDPR confirm: Raynet sync exception for form {$form['id']}: " . $e->getMessage());
+            }
+        }
 
         // Show success page
-        showSuccessPage($form['id'], $raynetSuccess);
+        showSuccessPage($form['id'], $raynetSuccess, $raynetPendingApproval);
         exit;
     }
 
@@ -1151,7 +1176,7 @@ function showConfirmationForm($form, $formData) {
     <?php
 }
 
-function showSuccessPage($formId, $raynetSuccess) {
+function showSuccessPage($formId, $raynetSuccess, $raynetPendingApproval = false) {
     ?>
     <!DOCTYPE html>
     <html lang="cs">
@@ -1178,13 +1203,13 @@ function showSuccessPage($formId, $raynetSuccess) {
             <h3>Co se děje dále?</h3>
             <ul>
                 <li>✅ Vaše data byla předána našemu týmu specialistů</li>
-                <li>✅ Dotazník byl <?php echo $raynetSuccess ? 'úspěšně odeslán' : 'zařazen k manuálnímu zpracování'; ?> do systému Raynet</li>
+                <li>✅ Dotazník byl <?php echo $raynetSuccess ? 'úspěšně odeslán do systému Raynet' : 'zařazen ke zpracování'; ?></li>
                 <li>📞 Do 2 pracovních dnů vás kontaktuje náš specialista</li>
                 <li>📋 Připravíme pro vás individuální nabídku bateriového systému</li>
             </ul>
         </div>
 
-        <?php if (!$raynetSuccess): ?>
+        <?php if (!$raynetSuccess && !$raynetPendingApproval): ?>
         <div class="warning">
             <strong>Upozornění:</strong> Došlo k drobné technické chybě při automatickém předání dat do našeho CRM systému. 
             Vaše data jsou ale bezpečně uložena a budou zpracována manuálně.

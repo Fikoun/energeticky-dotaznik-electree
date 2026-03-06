@@ -85,3 +85,135 @@ function queueFormForRaynetSync(int $formId, \PDO $pdo): bool
         return false;
     }
 }
+
+/**
+ * Check for duplicates and sync form to Raynet only if safe.
+ *
+ * Called after GDPR confirmation. If a duplicate company is found in Raynet
+ * (matched by IČO, extId, etc.), the form is NOT synced automatically.
+ * Instead it is flagged as 'pending_approval' for an admin to review.
+ *
+ * @param array      $formData  The form data
+ * @param string|int $formId    The form ID
+ * @param \PDO       $pdo       Database connection
+ * @return array Result with keys: status ('synced'|'pending_approval'|'error'), details
+ */
+function checkAndSyncFormToRaynet(array $formData, string|int $formId, \PDO $pdo): array
+{
+    try {
+        $connector = RaynetConnector::create($pdo);
+
+        if (!$connector->isConfigured()) {
+            error_log("Raynet checkAndSync skipped: connector not configured");
+            return ['status' => 'error', 'error' => 'Raynet connector is not configured'];
+        }
+
+        // --- Pre-flight duplicate check ---
+        $checker = new \Raynet\RaynetDuplicateChecker($connector->getClient());
+        $company = $connector->company();
+
+        // Parse form data the same way RaynetCompany does
+        $parsed = $formData;
+        if (isset($formData['form_data'])) {
+            $decoded = is_string($formData['form_data'])
+                ? json_decode($formData['form_data'], true)
+                : (is_array($formData['form_data']) ? $formData['form_data'] : null);
+            if ($decoded) {
+                $parsed = array_merge($formData, $decoded);
+            }
+        }
+
+        $extId = "energyforms:{$formId}";
+        $existing = $checker->findExistingCompany($extId, [
+            'ico'       => $parsed['ico'] ?? null,
+            'taxNumber' => $parsed['dic'] ?? null,
+            'name'      => $parsed['companyName'] ?? null,
+        ]);
+
+        if ($existing) {
+            // Duplicate / existing company found – do NOT sync automatically
+            $matchInfo = [
+                'raynet_company_id' => $existing['id'],
+                'matched_by'        => $existing['matched_by'],
+                'company_name'      => $existing['data']['name'] ?? '',
+            ];
+
+            $errorMsg = 'PENDING_APPROVAL: Nalezena existující firma v Raynet'
+                . ' (shoda: ' . $existing['matched_by'] . ', ID: ' . $existing['id'] . ')';
+
+            $stmt = $pdo->prepare("
+                UPDATE forms SET
+                    raynet_sync_status = 'pending_approval',
+                    raynet_sync_error  = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$errorMsg, $formId]);
+
+            error_log("Raynet checkAndSync: duplicate found for form {$formId} – matched by {$existing['matched_by']}, Raynet ID {$existing['id']}");
+
+            return [
+                'status'  => 'pending_approval',
+                'message' => $errorMsg,
+                'match'   => $matchInfo,
+            ];
+        }
+
+        // --- No duplicate found – safe to create new company ---
+        $result = $connector->syncForm($formData, $formId);
+
+        if ($result['success']) {
+            // Update sync status
+            $stmt = $pdo->prepare("UPDATE forms SET raynet_sync_status = 'synced' WHERE id = ?");
+            $stmt->execute([$formId]);
+
+            return [
+                'status'     => 'synced',
+                'company_id' => $result['company_id'],
+                'person_id'  => $result['person_id'],
+            ];
+        }
+
+        // Sync attempted but failed
+        $stmt = $pdo->prepare("UPDATE forms SET raynet_sync_status = 'error' WHERE id = ?");
+        $stmt->execute([$formId]);
+
+        return [
+            'status' => 'error',
+            'error'  => $result['error'] ?? 'Unknown sync error',
+        ];
+
+    } catch (RaynetException $e) {
+        error_log("Raynet checkAndSync failed for form {$formId}: " . $e->getMessage());
+
+        try {
+            $stmt = $pdo->prepare("
+                UPDATE forms SET
+                    raynet_sync_status = 'error',
+                    raynet_sync_error  = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$e->getMessage(), $formId]);
+        } catch (\Exception $dbErr) {
+            error_log("Failed to update sync error: " . $dbErr->getMessage());
+        }
+
+        return ['status' => 'error', 'error' => $e->getMessage()];
+
+    } catch (\Exception $e) {
+        error_log("Raynet checkAndSync unexpected error for form {$formId}: " . $e->getMessage());
+
+        try {
+            $stmt = $pdo->prepare("
+                UPDATE forms SET
+                    raynet_sync_status = 'error',
+                    raynet_sync_error  = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$e->getMessage(), $formId]);
+        } catch (\Exception $dbErr) {
+            error_log("Failed to update sync error: " . $dbErr->getMessage());
+        }
+
+        return ['status' => 'error', 'error' => 'Unexpected error'];
+    }
+}

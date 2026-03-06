@@ -299,14 +299,15 @@ function getSyncStats(PDO $pdo): array
             COUNT(*) as total_forms,
             SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) as submitted_forms,
             SUM(CASE WHEN raynet_synced_at IS NOT NULL AND raynet_sync_error IS NULL THEN 1 ELSE 0 END) as synced_forms,
-            SUM(CASE WHEN status = 'submitted' AND raynet_synced_at IS NULL AND raynet_sync_error IS NULL THEN 1 ELSE 0 END) as pending_forms,
-            SUM(CASE WHEN raynet_sync_error IS NOT NULL THEN 1 ELSE 0 END) as error_forms
+            SUM(CASE WHEN status IN ('submitted','confirmed') AND raynet_synced_at IS NULL AND (raynet_sync_error IS NULL OR raynet_sync_status = 'pending') THEN 1 ELSE 0 END) as pending_forms,
+            SUM(CASE WHEN raynet_sync_status = 'pending_approval' THEN 1 ELSE 0 END) as pending_approval_forms,
+            SUM(CASE WHEN raynet_sync_error IS NOT NULL AND raynet_sync_status = 'error' THEN 1 ELSE 0 END) as error_forms
         FROM forms
     ")->fetch(PDO::FETCH_ASSOC);
     
     // Recent errors
     $recentErrors = $pdo->query("
-        SELECT id, company_name, raynet_sync_error, updated_at
+        SELECT id, company_name, raynet_sync_error, raynet_sync_status, updated_at
         FROM forms 
         WHERE raynet_sync_error IS NOT NULL 
         ORDER BY updated_at DESC 
@@ -330,6 +331,7 @@ function getSyncStats(PDO $pdo): array
                 'submitted_forms' => (int) $localStats['submitted_forms'],
                 'synced_forms' => (int) $localStats['synced_forms'],
                 'pending_forms' => (int) $localStats['pending_forms'],
+                'pending_approval_forms' => (int) $localStats['pending_approval_forms'],
                 'error_forms' => (int) $localStats['error_forms']
             ],
             'raynet' => $raynetStatus,
@@ -396,10 +398,13 @@ function getLocalForms(PDO $pdo, int $page, int $perPage, string $filter): array
             $whereClause .= " AND raynet_synced_at IS NOT NULL AND raynet_sync_error IS NULL";
             break;
         case 'pending':
-            $whereClause .= " AND raynet_synced_at IS NULL AND raynet_sync_error IS NULL";
+            $whereClause .= " AND raynet_synced_at IS NULL AND (raynet_sync_error IS NULL OR raynet_sync_status = 'pending')";
+            break;
+        case 'pending_approval':
+            $whereClause .= " AND raynet_sync_status = 'pending_approval'";
             break;
         case 'error':
-            $whereClause .= " AND raynet_sync_error IS NOT NULL";
+            $whereClause .= " AND raynet_sync_error IS NOT NULL AND raynet_sync_status = 'error'";
             break;
     }
     
@@ -420,6 +425,7 @@ function getLocalForms(PDO $pdo, int $page, int $perPage, string $filter): array
             f.raynet_person_id,
             f.raynet_synced_at,
             f.raynet_sync_error,
+            f.raynet_sync_status,
             f.created_at,
             f.updated_at,
             u.name as user_name
@@ -459,7 +465,10 @@ function getLocalForms(PDO $pdo, int $page, int $perPage, string $filter): array
 
 function getSyncStatusLabel(array $form): array
 {
-    if ($form['raynet_sync_error']) {
+    if (($form['raynet_sync_status'] ?? '') === 'pending_approval') {
+        return ['status' => 'pending_approval', 'label' => 'Čeká na schválení', 'class' => 'bg-orange-100 text-orange-800'];
+    }
+    if ($form['raynet_sync_error'] && ($form['raynet_sync_status'] ?? '') !== 'pending_approval') {
         return ['status' => 'error', 'label' => 'Chyba', 'class' => 'bg-red-100 text-red-800'];
     }
     if ($form['raynet_synced_at']) {

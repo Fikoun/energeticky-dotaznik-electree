@@ -41,6 +41,8 @@ const ALLOWED_MIME_TYPES = [
     'distributionCurvesFile' => ['application/pdf', 'image/jpeg', 'image/png', 'text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
     'billingDocuments' => ['application/pdf', 'image/jpeg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
     'cogenerationPhotos' => ['image/jpeg', 'image/png', 'image/heic', 'image/heif'],
+    'connectionContractFile' => ['application/pdf', 'image/jpeg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    'connectionApplicationFile' => ['application/pdf', 'image/jpeg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
     // Default for unknown fields
     'default' => ['image/jpeg', 'image/png', 'application/pdf']
 ];

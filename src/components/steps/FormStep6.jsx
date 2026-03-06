@@ -130,30 +130,28 @@ const FormStep6 = ({ formId }) => {
             Nahrát smlouvu o připojení a žádost o připojení
           </label>
           <div className="mt-3 space-y-3">
-            <div>
-              <label className="form-label text-sm">Smlouva o připojení:</label>
-              <input
-                type="file"
-                className="form-input"
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                {...register('connectionContractFile')}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Podporované formáty: PDF, Word dokumenty, obrázky (JPG, PNG)
-              </p>
-            </div>
-            <div>
-              <label className="form-label text-sm">Žádost o připojení:</label>
-              <input
-                type="file"
-                className="form-input"
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                {...register('connectionApplicationFile')}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Podporované formáty: PDF, Word dokumenty, obrázky (JPG, PNG)
-              </p>
-            </div>
+            <FileUploadField
+              name="connectionContractFile"
+              label="Smlouva o připojení:"
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              multiple={true}
+              formId={formId}
+              register={register}
+              setValue={setValue}
+              watch={watch}
+              helpText="Podporované formáty: PDF, Word dokumenty, obrázky (JPG, PNG)"
+            />
+            <FileUploadField
+              name="connectionApplicationFile"
+              label="Žádost o připojení:"
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              multiple={true}
+              formId={formId}
+              register={register}
+              setValue={setValue}
+              watch={watch}
+              helpText="Podporované formáty: PDF, Word dokumenty, obrázky (JPG, PNG)"
+            />
           </div>
         </div>
 

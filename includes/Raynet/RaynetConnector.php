@@ -354,7 +354,8 @@ class RaynetConnector
                     raynet_company_id = ?,
                     raynet_person_id = ?,
                     raynet_synced_at = ?,
-                    raynet_sync_error = NULL
+                    raynet_sync_error = NULL,
+                    raynet_sync_status = 'synced'
                 WHERE id = ?
             ");
             
@@ -377,7 +378,8 @@ class RaynetConnector
         try {
             $stmt = $this->pdo->prepare("
                 UPDATE forms SET 
-                    raynet_sync_error = ?
+                    raynet_sync_error = ?,
+                    raynet_sync_status = 'error'
                 WHERE id = ?
             ");
             

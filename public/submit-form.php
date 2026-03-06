@@ -371,16 +371,13 @@ try {
         error_log("GDPR confirmation email sent successfully to: " . $email);
     }
 
-    // Sync to Raynet CRM (async-friendly - won't block on failure)
-    $raynetResult = null;
-    if ($raynetSyncEnabled && $useDatabase) {
+    // Set Raynet sync status to 'pending' – actual sync happens after GDPR confirmation
+    if ($useDatabase) {
         try {
-            $raynetResult = syncFormToRaynet($data, $formId, $pdo);
-            if ($raynetResult && $raynetResult['success']) {
-                error_log("Raynet sync successful for form: $formId");
-            }
+            $stmt = $pdo->prepare("UPDATE forms SET raynet_sync_status = 'pending' WHERE id = ?");
+            $stmt->execute([$formId]);
         } catch (Exception $e) {
-            error_log("Raynet sync error (non-blocking): " . $e->getMessage());
+            error_log("Failed to set raynet_sync_status to pending: " . $e->getMessage());
         }
     }
 
@@ -391,8 +388,7 @@ try {
         'message' => 'Formulář byl úspěšně odeslán. Na váš email jsme zaslali odkaz pro potvrzení souhlasu GDPR.',
         'formId' => $formId,
         'requiresGdprConfirmation' => true,
-        'emailSent' => $emailSent,
-        'raynetSynced' => $raynetResult ? $raynetResult['success'] : false
+        'emailSent' => $emailSent
     ]);
 
     error_log("Submit form - Process completed successfully for: $formId");
