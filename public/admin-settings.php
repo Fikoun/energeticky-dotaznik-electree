@@ -45,59 +45,33 @@ header('Content-Type: text/html; charset=utf-8');
     </script>
 </head>
 <body class="bg-gray-50">
-    <!-- Navigation Header -->
-    <nav class="bg-white shadow-sm border-b border-gray-200">
-        <div class="mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex">
-                    <div class="flex-shrink-0 flex items-center">
-                        <h1 class="text-xl font-bold text-gray-900">Admin Panel</h1>
-                    </div>
-                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                        <a href="admin-dashboard.php" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm font-medium">
-                            📊 Dashboard
-                        </a>
-                        <a href="admin-users.php" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm font-medium">
-                            👥 Uživatelé
-                        </a>
-                        <a href="admin-forms.php" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm font-medium">
-                            📝 Formuláře
-                        </a>
-                        <a href="admin-sync.php" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm font-medium">
-                            ⌘ Synchronizace
-                        </a>
-                        <a href="admin-activity.php" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm font-medium">
-                            📋 Aktivita
-                        </a>
-                        <a href="admin-settings.php" class="border-primary-500 text-primary-600 border-b-2 py-4 px-1 text-sm font-medium">
-                            ⚙️ Nastavení
-                        </a>
-                    </div>
-                </div>
-                <div class="flex items-center">
-                    <span class="text-sm text-gray-700 mr-4">
-                        <?= htmlspecialchars($_SESSION['user_name'] ?? 'Admin') ?>
-                    </span>
-                    <a href="logout.php" class="text-sm text-gray-500 hover:text-gray-700">
-                        Odhlásit se
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
+    <?php $activePage = 'settings'; require __DIR__ . '/admin-nav.php'; ?>
 
     <!-- Main Content -->
     <div class="py-6">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             
             <!-- Page Header -->
-            <div class="mb-8">
+            <div class="mb-6">
                 <h2 class="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
                     Nastavení systému
                 </h2>
                 <p class="mt-1 text-sm text-gray-500">
                     Správa rolí, systémových nastavení a konfigurace
                 </p>
+            </div>
+
+            <!-- Quick Access -->
+            <div class="mb-8 flex space-x-3">
+                <a href="admin-users.php" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm">
+                    👥 Uživatelé
+                </a>
+                <a href="admin-activity.php" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm">
+                    📋 Aktivita
+                </a>
+                <a href="admin-custom-fields.php" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm">
+                    🔧 Vlastní pole
+                </a>
             </div>
 
             <!-- Settings Tabs -->

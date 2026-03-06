@@ -130,9 +130,6 @@ header('Content-Type: text/html; charset=utf-8');
                     <button onclick="testConnection()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm font-medium flex items-center">
                       Test připojení
                     </button>
-                    <button onclick="syncAllPending()" id="syncAllBtn" class="bg-raynet-600 hover:bg-raynet-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center">
-                        Synchronizovat vše
-                    </button>
                 </div>
             </div>
 
@@ -142,12 +139,12 @@ header('Content-Type: text/html; charset=utf-8');
             </div>
 
             <!-- Stats Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                 <!-- Synced -->
                 <div class="bg-white rounded-lg shadow p-5">
                     <div class="flex items-center">
                         <div class="flex-shrink-0 bg-green-100 rounded-md p-3">
-                            <span class="text-2xl">✅</span>
+                            <span class="text-2xl"> ✓ </span>
                         </div>
                         <div class="ml-4">
                             <p class="text-sm font-medium text-gray-500">Synchronizováno</p>
@@ -156,18 +153,7 @@ header('Content-Type: text/html; charset=utf-8');
                     </div>
                 </div>
                 
-                <!-- Pending -->
-                <div class="bg-white rounded-lg shadow p-5">
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0 bg-yellow-100 rounded-md p-3">
-                            <span class="text-2xl">⏳</span>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm font-medium text-gray-500">Ve frontě</p>
-                            <p class="text-2xl font-semibold text-yellow-600" id="stat-pending">-</p>
-                        </div>
-                    </div>
-                </div>
+               
 
                 <!-- Pending Approval -->
                 <div class="bg-white rounded-lg shadow p-5 cursor-pointer hover:shadow-md transition-shadow" onclick="document.getElementById('filter-status').value='pending_approval'; loadLocalForms(1);">
@@ -204,10 +190,8 @@ header('Content-Type: text/html; charset=utf-8');
                     <span class="text-sm font-medium text-gray-900 ml-1" id="last-sync-time">-</span>
                 </div>
                 <div class="flex items-center space-x-4">
-                    <span class="text-sm text-gray-500" id="rate-limit-info"></span>
-                    <button onclick="refreshStats()" class="text-primary-600 hover:text-primary-800 text-sm font-medium">
-                        🔄 Obnovit
-                    </button>
+                    <span class="text-sm text-gray-500" id="rate-limit-info"><span>
+                   
                 </div>
             </div>
 
@@ -231,16 +215,16 @@ header('Content-Type: text/html; charset=utf-8');
                 <div class="border-b border-gray-200">
                     <nav class="flex -mb-px">
                         <button onclick="switchTab('local')" id="tab-local" class="tab-active px-6 py-4 text-sm font-medium">
-                            📝 Lokální formuláře
+                            Lokální formuláře
                         </button>
                         <button onclick="switchTab('raynet')" id="tab-raynet" class="px-6 py-4 text-sm font-medium text-gray-500 hover:text-gray-700">
                             ☁️ Raynet firmy
                         </button>
                         <button onclick="switchTab('logs')" id="tab-logs" class="px-6 py-4 text-sm font-medium text-gray-500 hover:text-gray-700">
-                            📋 Logy
+                            Logy
                         </button>
                         <button onclick="switchTab('tester')" id="tab-tester" class="px-6 py-4 text-sm font-medium text-gray-500 hover:text-gray-700">
-                            🔬 Tester polí
+                            Tester polí
                         </button>
                     </nav>
                 </div>

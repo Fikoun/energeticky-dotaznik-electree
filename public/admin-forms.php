@@ -45,46 +45,7 @@ header('Content-Type: text/html; charset=utf-8');
     </script>
 </head>
 <body class="bg-gray-50">
-    <!-- Navigation Header -->
-    <nav class="bg-white shadow-sm border-b border-gray-200">
-        <div class="mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex">
-                    <div class="flex-shrink-0 flex items-center">
-                        <h1 class="text-xl font-bold text-gray-900">Admin Panel</h1>
-                    </div>
-                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                        <a href="admin-dashboard.php" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm font-medium">
-                            📊 Dashboard
-                        </a>
-                        <a href="admin-users.php" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm font-medium">
-                            👥 Uživatelé
-                        </a>
-                        <a href="admin-forms.php" class="border-primary-500 text-primary-600 border-b-2 py-4 px-1 text-sm font-medium">
-                            📝 Formuláře
-                        </a>
-                        <a href="admin-sync.php" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm font-medium">
-                            ⌘ Synchronizace
-                        </a>
-                        <a href="admin-activity.php" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm font-medium">
-                            📋 Aktivita
-                        </a>
-                        <a href="admin-settings.php" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm font-medium">
-                            ⚙️ Nastavení
-                        </a>
-                    </div>
-                </div>
-                <div class="flex items-center">
-                    <span class="text-sm text-gray-700 mr-4">
-                        <?= htmlspecialchars($_SESSION['user_name'] ?? 'Admin') ?>
-                    </span>
-                    <a href="logout.php" class="text-sm text-gray-500 hover:text-gray-700">
-                        Odhlásit se
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
+    <?php $activePage = 'forms'; require __DIR__ . '/admin-nav.php'; ?>
 
     <!-- Main Content -->
     <div class="py-6">
@@ -112,117 +73,55 @@ header('Content-Type: text/html; charset=utf-8');
 
             <!-- Quick Stats -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div class="bg-white overflow-hidden shadow rounded-lg">
-                    <div class="p-5">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0">
-                                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm">
-                                    📝
-                                </div>
-                            </div>
-                            <div class="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt class="text-sm font-medium text-gray-500 truncate">Celkem formulářů</dt>
-                                    <dd class="text-lg font-medium text-gray-900" id="total-forms">-</dd>
-                                </dl>
-                            </div>
+                <div class="bg-white rounded-lg shadow p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0 bg-blue-100 rounded-md p-3">
+                            <span class="text-2xl">✎</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Celkem formulářů</p>
+                            <p class="text-2xl font-semibold text-blue-600" id="total-forms">-</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white overflow-hidden shadow rounded-lg">
-                    <div class="p-5">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0">
-                                <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm">
-                                    ✅
-                                </div>
-                            </div>
-                            <div class="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt class="text-sm font-medium text-gray-500 truncate">Zpracované</dt>
-                                    <dd class="text-lg font-medium text-gray-900" id="processed-forms">-</dd>
-                                </dl>
-                            </div>
+                <div class="bg-white rounded-lg shadow p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0 bg-green-100 rounded-md p-3">
+                            <span class="text-2xl">✓</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Zpracované</p>
+                            <p class="text-2xl font-semibold text-green-600" id="processed-forms">-</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white overflow-hidden shadow rounded-lg">
-                    <div class="p-5">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0">
-                                <div class="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white text-sm">
-                                    ⏳
-                                </div>
-                            </div>
-                            <div class="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt class="text-sm font-medium text-gray-500 truncate">Čekající</dt>
-                                    <dd class="text-lg font-medium text-gray-900" id="pending-forms">-</dd>
-                                </dl>
-                            </div>
+                <div class="bg-white rounded-lg shadow p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0 bg-yellow-100 rounded-md p-3">
+                            <span class="text-2xl">⏲</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Čekající</p>
+                            <p class="text-2xl font-semibold text-yellow-600" id="pending-forms">-</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white overflow-hidden shadow rounded-lg">
-                    <div class="p-5">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0">
-                                <div class="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-sm">
-                                    📅
-                                </div>
-                            </div>
-                            <div class="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt class="text-sm font-medium text-gray-500 truncate">Tento měsíc</dt>
-                                    <dd class="text-lg font-medium text-gray-900" id="monthly-forms">-</dd>
-                                </dl>
-                            </div>
+                <div class="bg-white rounded-lg shadow p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0 bg-purple-100 rounded-md p-3">
+                            <span class="text-2xl">▦</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Tento měsíc</p>
+                            <p class="text-2xl font-semibold text-purple-600" id="monthly-forms">-</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Search and Filters -->
-            <div class="bg-white p-6 rounded-lg shadow mb-6">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Hledat formuláře</label>
-                        <input type="text" id="form-search" placeholder="Jméno, email, město..." 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                        <select id="status-filter" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
-                            <option value="">Všechny statusy</option>
-                            <option value="pending">Čekající</option>
-                            <option value="processing">Zpracovává se</option>
-                            <option value="completed">Dokončeno</option>
-                            <option value="cancelled">Zrušeno</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Datum od</label>
-                        <input type="date" id="date-from" 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Datum do</label>
-                        <input type="date" id="date-to" 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
-                    </div>
-                </div>
-                <div class="mt-4 flex justify-between">
-                    <button onclick="searchForms()" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md text-sm">
-                        Vyhledat
-                    </button>
-                    <button onclick="clearFormFilters()" class="text-gray-600 hover:text-gray-800 text-sm">
-                        Vymazat filtry
-                    </button>
-                </div>
-            </div>
 
             <!-- Forms Table -->
             <div class="bg-white shadow rounded-lg">
@@ -316,7 +215,7 @@ header('Content-Type: text/html; charset=utf-8');
     </div>
 
     <!-- Statistics Modal -->
-    <div id="statsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <!-- <div id="statsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
         <div class="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
             <div class="mt-3">
                 <div class="flex justify-between items-center mb-4">
@@ -338,7 +237,7 @@ header('Content-Type: text/html; charset=utf-8');
                 </div>
             </div>
         </div>
-    </div>
+    </div> -->
 
     <script>
         // Console logging utility
@@ -416,7 +315,6 @@ header('Content-Type: text/html; charset=utf-8');
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zákazník</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kontakt</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Společnost</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Datum</th>
@@ -427,21 +325,8 @@ header('Content-Type: text/html; charset=utf-8');
                         ${forms.map(form => `
                             <tr class="hover:bg-gray-50">
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="flex items-center">
-                                        <div class="flex-shrink-0 h-10 w-10">
-                                            <div class="h-10 w-10 rounded-full bg-primary-500 flex items-center justify-center text-white font-medium">
-                                                ${(form.user_name || form.contact_person || 'U').charAt(0).toUpperCase()}
-                                            </div>
-                                        </div>
-                                        <div class="ml-4">
-                                            <div class="text-sm font-medium text-gray-900">${form.user_name || form.contact_person || 'Neznámý'}</div>
-                                            <div class="text-sm text-gray-500">${form.user_email || form.email || ''}</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <div>${form.phone || '-'}</div>
-                                    <div class="text-xs text-gray-400">ID: ${form.id}</div>
+                                    <div class="text-sm font-medium text-gray-900">${form.contact_person || '-'}</div>
+                                    <div class="text-sm text-gray-500">${form.email || ''}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">
@@ -463,13 +348,7 @@ header('Content-Type: text/html; charset=utf-8');
                                     <button onclick="viewFormDetail('${form.id}')" class="text-blue-600 hover:text-blue-900 mr-3">
                                         Detail
                                     </button>
-                                    <button onclick="syncWithRaynet('${form.id}')" class="text-purple-600 hover:text-purple-900 mr-3" title="Synchronizovat s Raynet">
-                                        ⌘ Sync
-                                    </button>
-                                    <button onclick="changeFormStatus('${form.id}', '${form.status}')" class="text-green-600 hover:text-green-900 mr-3">
-                                        Status
-                                    </button>
-                                    <button onclick="confirmDeleteForm('${form.id}', '${form.user_name || form.contact_person}')" class="text-red-600 hover:text-red-900">
+                                    <button onclick="confirmDeleteForm('${form.id}', '${form.contact_person}')" class="text-red-600 hover:text-red-900">
                                         Smazat
                                     </button>
                                 </td>
