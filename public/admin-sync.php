@@ -495,9 +495,8 @@ header('Content-Type: text/html; charset=utf-8');
         function updateStatsUI(stats) {
             log.info('Updating stats UI', stats);
             
-            // Local stats (removed stat-local-total as card was removed)
+            // Local stats
             document.getElementById('stat-synced').textContent = stats.local.synced_forms;
-            document.getElementById('stat-pending').textContent = stats.local.pending_forms;
             document.getElementById('stat-pending-approval').textContent = stats.local.pending_approval_forms || 0;
             document.getElementById('stat-errors').textContent = stats.local.error_forms;
             
