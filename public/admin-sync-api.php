@@ -293,32 +293,54 @@ function validateCsrf(array $data): void
 
 function getSyncStats(PDO $pdo): array
 {
-    // Local stats
-    $localStats = $pdo->query("
-        SELECT 
-            COUNT(*) as total_forms,
-            SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) as submitted_forms,
-            SUM(CASE WHEN raynet_synced_at IS NOT NULL AND raynet_sync_error IS NULL THEN 1 ELSE 0 END) as synced_forms,
-            SUM(CASE WHEN status IN ('submitted','confirmed') AND raynet_synced_at IS NULL AND (raynet_sync_error IS NULL OR raynet_sync_status = 'pending') THEN 1 ELSE 0 END) as pending_forms,
-            SUM(CASE WHEN raynet_sync_status = 'pending_approval' THEN 1 ELSE 0 END) as pending_approval_forms,
-            SUM(CASE WHEN raynet_sync_error IS NOT NULL AND raynet_sync_status = 'error' THEN 1 ELSE 0 END) as error_forms
-        FROM forms
-    ")->fetch(PDO::FETCH_ASSOC);
-    
-    // Recent errors
-    $recentErrors = $pdo->query("
-        SELECT id, company_name, raynet_sync_error, raynet_sync_status, updated_at
-        FROM forms 
-        WHERE raynet_sync_error IS NOT NULL 
-        ORDER BY updated_at DESC 
-        LIMIT 5
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Last sync times
-    $lastSync = $pdo->query("
-        SELECT MAX(raynet_synced_at) as last_sync_time
-        FROM forms
-    ")->fetch(PDO::FETCH_ASSOC);
+    // Base stats (columns always present)
+    $totalForms = (int) $pdo->query("SELECT COUNT(*) FROM forms")->fetchColumn();
+
+    // Raynet-specific stats — columns may not exist yet (migration not run)
+    $synced_forms = 0;
+    $pending_forms = 0;
+    $pending_approval_forms = 0;
+    $error_forms = 0;
+    $recentErrors = [];
+    $lastSyncTime = null;
+
+    try {
+        $localStats = $pdo->query("
+            SELECT 
+                SUM(CASE WHEN raynet_synced_at IS NOT NULL AND raynet_sync_error IS NULL THEN 1 ELSE 0 END) as synced_forms,
+                SUM(CASE WHEN status IN ('submitted','confirmed') AND raynet_synced_at IS NULL AND (raynet_sync_error IS NULL OR raynet_sync_status = 'pending') THEN 1 ELSE 0 END) as pending_forms,
+                SUM(CASE WHEN raynet_sync_status = 'pending_approval' THEN 1 ELSE 0 END) as pending_approval_forms,
+                SUM(CASE WHEN raynet_sync_error IS NOT NULL AND raynet_sync_status = 'error' THEN 1 ELSE 0 END) as error_forms
+            FROM forms
+        ")->fetch(PDO::FETCH_ASSOC);
+        $synced_forms           = (int) ($localStats['synced_forms'] ?? 0);
+        $pending_forms          = (int) ($localStats['pending_forms'] ?? 0);
+        $pending_approval_forms = (int) ($localStats['pending_approval_forms'] ?? 0);
+        $error_forms            = (int) ($localStats['error_forms'] ?? 0);
+
+        $recentErrors = $pdo->query("
+            SELECT id, company_name, raynet_sync_error, raynet_sync_status, updated_at
+            FROM forms 
+            WHERE raynet_sync_error IS NOT NULL 
+            ORDER BY updated_at DESC 
+            LIMIT 5
+        ")->fetchAll(PDO::FETCH_ASSOC);
+
+        $lastSyncTime = $pdo->query("
+            SELECT MAX(raynet_synced_at) as last_sync_time FROM forms
+        ")->fetchColumn() ?: null;
+    } catch (Exception $e) {
+        // Raynet columns not yet migrated — return zeros silently
+        error_log('getSyncStats: Raynet columns missing, run migrations. ' . $e->getMessage());
+    }
+
+    $localStats = [
+        'total_forms'            => $totalForms,
+        'synced_forms'           => $synced_forms,
+        'pending_forms'          => $pending_forms,
+        'pending_approval_forms' => $pending_approval_forms,
+        'error_forms'            => $error_forms,
+    ];
     
     // Check Raynet connection
     $raynetStatus = checkRaynetStatus();
@@ -327,16 +349,15 @@ function getSyncStats(PDO $pdo): array
         'success' => true,
         'data' => [
             'local' => [
-                'total_forms' => (int) $localStats['total_forms'],
-                'submitted_forms' => (int) $localStats['submitted_forms'],
-                'synced_forms' => (int) $localStats['synced_forms'],
-                'pending_forms' => (int) $localStats['pending_forms'],
-                'pending_approval_forms' => (int) $localStats['pending_approval_forms'],
-                'error_forms' => (int) $localStats['error_forms']
+                'total_forms'            => $localStats['total_forms'],
+                'synced_forms'           => $localStats['synced_forms'],
+                'pending_forms'          => $localStats['pending_forms'],
+                'pending_approval_forms' => $localStats['pending_approval_forms'],
+                'error_forms'            => $localStats['error_forms'],
             ],
             'raynet' => $raynetStatus,
             'recent_errors' => $recentErrors,
-            'last_sync_time' => $lastSync['last_sync_time']
+            'last_sync_time' => $lastSyncTime
         ]
     ];
 }
