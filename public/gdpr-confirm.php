@@ -4,6 +4,18 @@ header('Content-Type: text/html; charset=utf-8');
 // Database configuration - use centralized config
 require_once __DIR__ . '/../config/database.php';
 
+// Názvy kroků (must be defined before showConfirmationForm is called)
+$step_names = [
+    1 => 'Identifikační údaje',
+    2 => 'Parametry odběrného místa',
+    3 => 'Energetické potřeby',
+    4 => 'Cíle a očekávání',
+    5 => 'Infrastruktura',
+    6 => 'Provozní rámec',
+    7 => 'Poznámky',
+    8 => 'Energetický dotazník'
+];
+
 // Load Raynet sync helper (optional - fails silently if not configured)
 $raynetSyncEnabled = false;
 $raynetHelperPath = __DIR__ . '/../includes/raynet-sync-helpers.php';
@@ -141,17 +153,7 @@ function organizeDataBySteps($decoded_data) {
     });
 }
 
-// Názvy kroků
-$step_names = [
-    1 => 'Identifikační údaje',
-    2 => 'Parametry odběrného místa',
-    3 => 'Energetické potřeby',
-    4 => 'Cíle a očekávání',
-    5 => 'Infrastruktura',
-    6 => 'Provozní rámec',
-    7 => 'Poznámky',
-    8 => 'Energetický dotazník'
-];
+// $step_names is defined at the top of the file
 
 function getStepIcon($step) {
     $icons = [
