@@ -61,6 +61,7 @@ const useAutoSave = (formMethods, user, currentStep, delay = 3000) => {
   const [saveError, setSaveError] = useState(null)
   const [isDisabled, setIsDisabled] = useState(false) // Flag to disable auto-save after submission
   const saveTimeoutRef = useRef(null)
+  const saveInFlightRef = useRef(null) // Track in-flight save promise
   
   // Wrapper to persist formId when it changes
   const setFormId = (newFormId) => {
@@ -70,13 +71,23 @@ const useAutoSave = (formMethods, user, currentStep, delay = 3000) => {
     }
   }
 
-  // Function to disable auto-save and clear pending saves
-  const disableAutoSave = () => {
+  // Function to disable auto-save, clear pending saves, and wait for in-flight save
+  const disableAutoSave = async () => {
     console.log('AutoSave: Disabling auto-save')
     setIsDisabled(true)
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = null
+    }
+    // Wait for any in-flight save to complete so formId is up-to-date
+    if (saveInFlightRef.current) {
+      console.log('AutoSave: Waiting for in-flight save to complete...')
+      try {
+        await saveInFlightRef.current
+      } catch {
+        // Ignore errors - the save might fail, that's ok
+      }
+      console.log('AutoSave: In-flight save finished')
     }
   }
 
@@ -138,70 +149,78 @@ const useAutoSave = (formMethods, user, currentStep, delay = 3000) => {
     setIsSaving(true)
     setSaveError(null)
     
-    try {
-      // Get temp form ID for file migration (if files were uploaded before first save)
-      const tempFormId = getSessionTempFormId()
-      
-      const submissionData = {
-        ...data,
-        user: {
-          id: user.id,
-          name: user.fullName || user.name,
-          email: user.email
-        },
-        isDraft: true,
-        formId: formId,
-        tempFormId: tempFormId, // Pass temp ID for file migration
-        currentStep: currentStep,
-        lastModified: new Date().toISOString()
-      }
-
-      console.log('AutoSave: Sending data to server', { 
-        hasFormId: !!formId,
-        tempFormId: tempFormId,
-        userId: user.id, 
-        currentStep,
-        dataKeys: Object.keys(data).length 
-      })
-
-      const response = await fetch('/public/submit-form.php', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submissionData)
-      })
-
-      console.log('AutoSave: Server response status:', response.status)
-
-      if (response.ok) {
-        const result = await response.json()
-        console.log('AutoSave: Server response:', result)
+    const savePromise = (async () => {
+      try {
+        // Get temp form ID for file migration (if files were uploaded before first save)
+        const tempFormId = getSessionTempFormId()
         
-        if (result.success && result.formId) {
-          setFormId(result.formId)
-          setLastSaved(new Date())
-          console.log('AutoSave: Successfully saved with formId:', result.formId)
-        } else {
-          throw new Error(result.error || 'Neznámá chyba při ukládání')
+        const submissionData = {
+          ...data,
+          user: {
+            id: user.id,
+            name: user.fullName || user.name,
+            email: user.email
+          },
+          isDraft: true,
+          formId: formId,
+          tempFormId: tempFormId, // Pass temp ID for file migration
+          currentStep: currentStep,
+          lastModified: new Date().toISOString()
         }
-      } else {
-        const errorText = await response.text()
-        console.error('AutoSave: Server error response:', errorText)
-        throw new Error(`Server error: ${response.status} - ${errorText}`)
+
+        console.log('AutoSave: Sending data to server', { 
+          hasFormId: !!formId,
+          tempFormId: tempFormId,
+          userId: user.id, 
+          currentStep,
+          dataKeys: Object.keys(data).length 
+        })
+
+        const response = await fetch('/public/submit-form.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(submissionData)
+        })
+
+        console.log('AutoSave: Server response status:', response.status)
+
+        if (response.ok) {
+          const result = await response.json()
+          console.log('AutoSave: Server response:', result)
+          
+          if (result.success && result.formId) {
+            setFormId(result.formId)
+            setLastSaved(new Date())
+            console.log('AutoSave: Successfully saved with formId:', result.formId)
+          } else {
+            throw new Error(result.error || 'Neznámá chyba při ukládání')
+          }
+        } else {
+          const errorText = await response.text()
+          console.error('AutoSave: Server error response:', errorText)
+          throw new Error(`Server error: ${response.status} - ${errorText}`)
+        }
+      } catch (error) {
+        console.error('AutoSave: Failed to save draft:', error)
+        setSaveError(error.message)
+        
+        // Show user-friendly error message
+        if (!window.autoSaveErrorShown) {
+          alert(`Chyba při automatickém ukládání: ${error.message}`)
+          window.autoSaveErrorShown = true
+          // Reset flag after 5 minutes
+          setTimeout(() => { window.autoSaveErrorShown = false }, 300000)
+        }
       }
-    } catch (error) {
-      console.error('AutoSave: Failed to save draft:', error)
-      setSaveError(error.message)
-      
-      // Show user-friendly error message
-      if (!window.autoSaveErrorShown) {
-        alert(`Chyba při automatickém ukládání: ${error.message}`)
-        window.autoSaveErrorShown = true
-        // Reset flag after 5 minutes
-        setTimeout(() => { window.autoSaveErrorShown = false }, 300000)
-      }
+    })()
+
+    saveInFlightRef.current = savePromise
+    try {
+      await savePromise
     } finally {
+      saveInFlightRef.current = null
       setIsSaving(false)
     }
   }

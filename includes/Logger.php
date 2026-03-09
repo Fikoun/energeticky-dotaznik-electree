@@ -27,10 +27,10 @@ class Logger
     const TYPE_SYSTEM = 'system';
     const TYPE_USER = 'user';
     
-    public function __construct(PDO $pdo, ?int $userId = null, string|int|null $formId = null)
+    public function __construct(PDO $pdo, string|int|null $userId = null, string|int|null $formId = null)
     {
         $this->pdo = $pdo;
-        $this->userId = $userId;
+        $this->userId = $userId !== null ? (int)$userId : null;
         $this->formId = $formId;
     }
     

@@ -556,9 +556,9 @@ function App() {
     setIsSubmitting(true)
     setSubmissionError(null)
     
-    // IMPORTANT: Disable auto-save IMMEDIATELY to prevent race conditions
-    // where auto-save could overwrite the 'submitted' status
-    disableAutoSave()
+    // IMPORTANT: Disable auto-save and wait for any in-flight save to complete
+    // This ensures formId is up-to-date before we use it for final submission
+    await disableAutoSave()
     
     try {
       // Generate or use existing form ID

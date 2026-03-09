@@ -221,16 +221,20 @@ try {
                 $userId
             ]);
             
-            if (!$result) {
-                throw new Exception('Chyba při aktualizaci formuláře');
+            if ($result && $stmt->rowCount() > 0) {
+                $formId = $data['formId'];
+                error_log("Submit form - Updated form successfully: $formId");
+            } else {
+                // Form doesn't exist yet (e.g. auto-save hadn't saved before submission)
+                // Fall through to INSERT with the client-provided ID
+                error_log("Submit form - UPDATE matched 0 rows for formId: " . $data['formId'] . ", falling back to INSERT");
+                $isUpdate = false;
             }
-            
-            $formId = $data['formId'];
-            error_log("Submit form - Updated form successfully: $formId");
-            
-        } else {
-            // Create new form
-            $formId = uniqid('form_' . $userId . '_');
+        }
+        
+        if (!$isUpdate) {
+            // Create new form - use client-provided ID if available, otherwise generate
+            $formId = !empty($data['formId']) ? $data['formId'] : uniqid('form_' . $userId . '_');
             $status = $isDraft ? 'draft' : 'pending';
             
             error_log("Submit form - Creating new form ID: $formId");
@@ -344,6 +348,10 @@ try {
     if ($useDatabase) {
         $stmt = $pdo->prepare("UPDATE forms SET gdpr_token = ? WHERE id = ?");
         $stmt->execute([$gdprToken, $formId]);
+        
+        if ($stmt->rowCount() === 0) {
+            throw new Exception('Chyba při ukládání GDPR tokenu - formulář nebyl nalezen v databázi (ID: ' . $formId . ')');
+        }
 
         // Set Raynet sync status to 'pending' – actual sync happens after GDPR confirmation
         try {
