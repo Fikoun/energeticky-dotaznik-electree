@@ -135,14 +135,26 @@ function checkAndSyncFormToRaynet(array $formData, string|int $formId, \PDO $pdo
             $forceDuplicates = false;
             $notifyEmail = '';
             try {
-                $settingsStmt = $pdo->prepare("SELECT `key`, `value` FROM settings WHERE `key` IN ('raynet_force_duplicates', 'raynet_duplicate_notify_email')");
-                $settingsStmt->execute();
-                foreach ($settingsStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
-                    if ($row['key'] === 'raynet_force_duplicates') $forceDuplicates = ($row['value'] === '1');
-                    if ($row['key'] === 'raynet_duplicate_notify_email') $notifyEmail = $row['value'] ?? '';
+                // Check if settings table exists first
+                $tableCheck = $pdo->query("SHOW TABLES LIKE 'settings'");
+                if ($tableCheck->rowCount() > 0) {
+                    $settingsStmt = $pdo->prepare("SELECT `key`, `value` FROM settings WHERE `key` IN ('raynet_force_duplicates', 'raynet_duplicate_notify_email')");
+                    $settingsStmt->execute();
+                    foreach ($settingsStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+                        if ($row['key'] === 'raynet_force_duplicates') $forceDuplicates = ($row['value'] === '1');
+                        if ($row['key'] === 'raynet_duplicate_notify_email') $notifyEmail = $row['value'] ?? '';
+                    }
+                } else {
+                    error_log("Raynet checkAndSync: settings table does not exist yet – using defaults");
                 }
             } catch (\Exception $e) {
                 error_log("Raynet checkAndSync: failed to read duplicate settings: " . $e->getMessage());
+            }
+
+            // Fallback: if no notification email configured, use info@electree.cz
+            if (empty($notifyEmail)) {
+                $notifyEmail = 'info@electree.cz';
+                error_log("Raynet checkAndSync: no notification email configured, using fallback: {$notifyEmail}");
             }
 
             if ($forceDuplicates) {
@@ -186,9 +198,7 @@ function checkAndSyncFormToRaynet(array $formData, string|int $formId, \PDO $pdo
             error_log("Raynet checkAndSync: duplicate found for form {$formId} – matched by {$existing['matched_by']}, Raynet ID {$existing['id']}");
 
             // Send notification email to admin
-            if (!empty($notifyEmail)) {
-                sendDuplicateNotificationEmail($notifyEmail, $formId, $parsed, $existing);
-            }
+            sendDuplicateNotificationEmail($notifyEmail, $formId, $parsed, $existing);
 
             return [
                 'status'  => 'pending_approval',

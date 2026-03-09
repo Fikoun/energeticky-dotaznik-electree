@@ -143,14 +143,14 @@ function organizeDataBySteps($decoded_data) {
 
 // Názvy kroků
 $step_names = [
-    1 => 'Identifikační údaje zákazníka',
+    1 => 'Identifikační údaje',
     2 => 'Parametry odběrného místa',
-    3 => 'Spotřeba a rozložení',
-    4 => 'Analýza spotřeby a akumulace',
-    5 => 'Cíle a optimalizace',
-    6 => 'Místo realizace a infrastruktura',
-    7 => 'Připojení k síti a legislativa',
-    8 => 'Energetická fakturace a bilancování'
+    3 => 'Energetické potřeby',
+    4 => 'Cíle a očekávání',
+    5 => 'Infrastruktura',
+    6 => 'Provozní rámec',
+    7 => 'Poznámky',
+    8 => 'Energetický dotazník'
 ];
 
 function getStepIcon($step) {
@@ -401,8 +401,10 @@ function formatSingleFile($url, $name = null, $type = null, $size = null) {
     $display_name = $name ?: basename($url);
     $file_type = $type ?: '';
     
-    $extension = strtolower(pathinfo($url, PATHINFO_EXTENSION));
-    $is_image = in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp']);
+    // Use original filename for extension detection when URL is a serve-file endpoint
+    $extensionSource = ($name && strpos($url, 'serve-file.php') !== false) ? $name : $url;
+    $extension = strtolower(pathinfo($extensionSource, PATHINFO_EXTENSION));
+    $is_image = in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'heic', 'heif']);
     $is_pdf = $extension === 'pdf';
     $is_doc = in_array($extension, ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']);
     
@@ -422,7 +424,11 @@ function formatSingleFile($url, $name = null, $type = null, $size = null) {
                     <a href="' . htmlspecialchars($full_url) . '" target="_blank" style="display: block; text-decoration: none;">
                         <img src="' . htmlspecialchars($full_url) . '" 
                              alt="' . htmlspecialchars($display_name) . '" 
-                             style="max-width: 200px; max-height: 200px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;">
+                             style="max-width: 200px; max-height: 200px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;"
+                             onerror="this.onerror=null; this.style.display=\'none\'; this.parentNode.querySelector(\'.img-fallback\').style.display=\'flex\';">
+                        <div class="img-fallback" style="display: none; width: 200px; height: 120px; background: #f0f0f0; border-radius: 8px; align-items: center; justify-content: center; color: #999;">
+                            <div style="text-align: center;"><i class="fas fa-image" style="font-size: 24px;"></i><br><small>Náhled není dostupný</small></div>
+                        </div>
                         <div style="text-align: center; font-size: 12px; color: #666; margin-top: 5px;">' . htmlspecialchars($display_name) . '</div>
                     </a>
                 </div>';
@@ -452,7 +458,7 @@ function formatSingleFile($url, $name = null, $type = null, $size = null) {
     }
 }
 
-function formatFileUploads($key, $value) {
+function formatFileUploads($key, $value, $formData = null) {
     if (empty($value)) {
         return '<span style="color: #999; font-style: italic;">Žádné soubory</span>';
     }
@@ -465,6 +471,16 @@ function formatFileUploads($key, $value) {
         return '<span style="color: #999; font-style: italic;">Neplatný formát</span>';
     }
     
+    // Build lookup of full file info from uploadedFiles (has url, mimeType, etc.)
+    $uploadedFilesInfo = [];
+    if ($formData && isset($formData['uploadedFiles'][$key]) && is_array($formData['uploadedFiles'][$key])) {
+        foreach ($formData['uploadedFiles'][$key] as $uf) {
+            if (isset($uf['id'])) {
+                $uploadedFilesInfo[$uf['id']] = $uf;
+            }
+        }
+    }
+    
     $files_html = '<div style="margin: 10px 0;">';
     $file_count = 0;
     
@@ -474,9 +490,24 @@ function formatFileUploads($key, $value) {
         if (is_string($file)) {
             $files_html .= formatSingleFile($file);
         } elseif (is_array($file)) {
-            $url = $file['url'] ?? $file['path'] ?? $file['name'] ?? '';
-            $name = $file['name'] ?? basename($url);
-            $type = $file['type'] ?? '';
+            $fileId = $file['id'] ?? null;
+            
+            // Merge with full info from uploadedFiles if available
+            if ($fileId && isset($uploadedFilesInfo[$fileId])) {
+                $file = array_merge($file, $uploadedFilesInfo[$fileId]);
+            }
+            
+            // Construct URL: prefer explicit url, then construct from file id
+            $url = $file['url'] ?? $file['path'] ?? '';
+            if (empty($url) && $fileId) {
+                $url = '/public/serve-file.php?id=' . urlencode($fileId);
+            }
+            if (empty($url)) {
+                $url = $file['name'] ?? $file['originalName'] ?? '';
+            }
+            
+            $name = $file['originalName'] ?? $file['name'] ?? $file['fileName'] ?? basename($url);
+            $type = $file['mimeType'] ?? $file['type'] ?? '';
             $size = $file['size'] ?? null;
             $files_html .= formatSingleFile($url, $name, $type, $size);
         }
@@ -515,7 +546,7 @@ function normalizeCheckboxGroup(array $value): array {
     return array_values(array_filter($value, fn($v) => $v !== '' && $v !== null && $v !== false));
 }
 
-function formatFieldValue($key, $value) {
+function formatFieldValue($key, $value, $formData = null) {
     if (is_null($value) || $value === '' || $value === false || (is_array($value) && empty($value))) {
         return '<span style="color: #999; font-style: italic;">Nevyplněno</span>';
     }
@@ -525,7 +556,7 @@ function formatFieldValue($key, $value) {
                     'billingDocuments', 'cogenerationPhotos', 'auditDocuments', 'photos', 'projectDocuments',
                     'connectionContractFile', 'connectionApplicationFile'];
     if (in_array($key, $file_fields)) {
-        return formatFileUploads($key, $value);
+        return formatFileUploads($key, $value, $formData);
     }
     
     // Priority fields
@@ -600,6 +631,7 @@ function formatFieldValue($key, $value) {
             'services'    => '🚚 Služby / Logistika',
             'agriculture' => '🌾 Zemědělství',
             'public'      => '🏛️ Veřejný sektor',
+            'other'       => '📝 Jiný typ zákazníka',
         ];
         $items = normalizeCheckboxGroup($value);
         if (empty($items)) return '<span style="color: #999; font-style: italic;">Nevyplněno</span>';
@@ -738,54 +770,98 @@ function formatFieldValue($key, $value) {
         return $agreements_html;
     }
     
+    // Per-field translation overrides (checked before the global table)
+    $field_translations = [
+        'coolingType' => [
+            'oil'   => 'Olej',
+            'air'   => 'Vzduch',
+            'other' => 'Jiné',
+        ],
+        'specialistPosition' => [
+            'specialist' => 'Specialista',
+            'manager'    => 'Správce',
+            'company'    => 'Externí společnost',
+        ],
+    ];
+    if (isset($field_translations[$key])) {
+        $lookup = strtolower((string)$value);
+        if (isset($field_translations[$key][$lookup])) {
+            return '<div style="background: #e8f5e8; padding: 8px 12px; border-radius: 5px; color: #333; font-weight: 500; display: inline-block;">' . htmlspecialchars($field_translations[$key][$lookup]) . '</div>';
+        }
+    }
+
     // Translations
     $translations = [
-        'yes' => 'Ano',
-        'no' => 'Ne',
-        'true' => 'Ano',
-        'false' => 'Ne',
-        'cez' => 'ČEZ',
-        'pre' => 'PRE',
-        'egd' => 'E.GD',
-        'lds' => 'LDS',
-        'oil' => 'Olejový spínač',
-        'vacuum' => 'Vakuový spínač',
-        'SF6' => 'SF6 spínač',
-        'other' => 'Jiný typ',
-        'quarter-hour' => 'Čtvrthodinové měření (A-měření)',
-        'unknown' => 'Neví',
-        'specific' => 'Konkrétní hodnota',
-        'once' => '1x denně',
-        'multiple' => 'Vícekrát denně',
-        'recommend' => 'Neznámo - doporučit',
-        'minutes' => 'Desítky minut',
-        'hours-1-3' => '1-3 hodiny',
-        'hours-3-plus' => 'Více než 3 hodiny',
-        'exact-time' => 'Přesně stanovená doba',
-        'easy' => 'Snadná přístupnost',
-        'moderate' => 'Středně obtížná',
-        'difficult' => 'Obtížná přístupnost',
-        'fix' => 'Fixní cena',
-        'spot' => 'Spotová cena',
-        'gradual' => 'Postupná fixace',
-        'very-important' => 'Velmi důležité',
-        'important' => 'Důležité',
-        'not-important' => 'Není důležité',
-        'customer' => 'Zákazník sám',
+        'yes'                => 'Ano',
+        'no'                 => 'Ne',
+        'true'               => 'Ano',
+        'false'              => 'Ne',
+        'cez'                => 'ČEZ',
+        'pre'                => 'PRE',
+        'egd'                => 'E.GD',
+        'lds'                => 'LDS',
+        // transformer switch types
+        'oil'                => 'Olejový spínač',
+        'vacuum'             => 'Vakuový spínač',
+        'sf6'                => 'SF6 spínač',
+        'other'              => 'Jiný',
+        // measurement
+        'quarter-hour'       => 'Čtvrthodinové měření (A-měření)',
+        'unknown'            => 'Neví',
+        'specific'           => 'Konkrétní hodnota',
+        // battery usage frequency
+        'once'               => '1x denně',
+        'multiple'           => 'Vícekrát denně',
+        'recommend'          => 'Neznámo - doporučit',
+        // backup duration
+        'minutes'            => 'Desítky minut',
+        'hours-1-3'          => '1-3 hodiny',
+        'hours-3-plus'       => 'Více než 3 hodiny',
+        'exact-time'         => 'Přesně stanovená doba',
+        // accessibility
+        'unlimited'          => 'Bez omezení',
+        'limited'            => 'Omezený přístup',
+        'easy'               => 'Snadná přístupnost',
+        'moderate'           => 'Středně obtížná',
+        'difficult'          => 'Obtížná přístupnost',
+        // billing
+        'fix'                => 'Fixní cena',
+        'spot'               => 'Spotová cena',
+        'gradual'            => 'Postupná fixace',
+        // price importance
+        'very-important'     => 'Velmi důležité',
+        'important'          => 'Důležité',
+        'not-important'      => 'Není důležité',
+        // connection application by
+        'customer'           => 'Zákazník sám',
         'customerbyelectree' => 'Zákazník prostřednictvím Electree',
-        'electree' => 'Firma Electree na základě plné moci',
-        'undecided' => 'Ještě nerozhodnuto',
-        'industrial' => '🏭 Průmysl',
-        'commercial' => '🏢 Komerční objekt',
-        'services' => '🚚 Služby / Logistika',
-        'agriculture' => '🌾 Zemědělství',
-        'public' => '🏛️ Veřejný sektor',
+        'electree'           => 'Firma Electree na základě plné moci',
+        'undecided'          => 'Ještě nerozhodnuto',
+        // customer type (single-value fallback)
+        'industrial'         => '🏭 Průmysl',
+        'commercial'         => '🏢 Komerční objekt',
+        'services'           => '🚚 Služby / Logistika',
+        'agriculture'        => '🌾 Zemědělství',
+        'public'             => '🏛️ Veřejný sektor',
+        // specialist position (single-value fallback)
+        'specialist'         => 'Specialista',
+        'manager'            => 'Správce',
+        'company'            => 'Externí společnost',
+        // goals (single-value fallback)
         'energyindependence' => 'Energetická nezávislost',
-        'costsaving' => 'Úspora nákladů',
-        'backuppower' => 'Záložní napájení',
-        'peakshaving' => 'Peak shaving',
-        'gridstabilization' => 'Stabilizace sítě',
+        'costsaving'         => 'Úspora nákladů',
+        'backuppower'        => 'Záložní napájení',
+        'peakshaving'        => 'Peak shaving',
+        'gridstabilization'  => 'Stabilizace sítě',
         'environmentalbenefit' => 'Ekologický přínos',
+        // energyAccumulation
+        'fve-overflow'       => 'Přetoky z FVE',
+        'peak-shaving'       => 'Posun spotřeby (peak shaving)',
+        'backup-power'       => 'Záloha při výpadku sítě',
+        'machine-support'    => 'Podpora výkonu strojů',
+        'power-reduction'    => 'Snížení rezervovaného příkonu',
+        'energy-trading'     => 'Obchodování s energií',
+        'subsidy'            => 'Získání dotace',
     ];
     
     $valueToCheck = is_string($value) ? strtolower($value) : (string)$value;
@@ -1073,7 +1149,7 @@ function showConfirmationForm($form, $formData) {
             <div>
                 <div style="font-size: 18px; font-weight: 700; color: #856404; margin-bottom: 6px;">Zkontrolujte si své údaje</div>
                 <div style="font-size: 15px; color: #6d5304; line-height: 1.6;">
-                    Níže jsou zobrazeny všechny informace, které jste vyplnili v dotazníku. 
+                    Níže jsou zobrazeny všechny informace, které byly vyplněny v dotazníku. 
                     Pečlivě si je zkontrolujte a pokud jsou správné, 
                     <strong>posuňte se na konec stránky a potvrďte souhlas se zpracováním dat podle GDPR</strong>.
                 </div>
@@ -1106,7 +1182,7 @@ function showConfirmationForm($form, $formData) {
                                     <?php echo getFieldLabel($key); ?>
                                 </div>
                                 <div class="field-value">
-                                    <?php echo formatFieldValue($key, $value); ?>
+                                    <?php echo formatFieldValue($key, $value, $formData); ?>
                                 </div>
                             </div>
                         <?php endforeach; ?>
