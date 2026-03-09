@@ -16,7 +16,7 @@ import TopBar from './components/TopBar'
 import Login from './components/Login'
 import useAutoSave, { clearPersistedFormId } from './hooks/useAutoSave'
 import { clearSessionTempId } from './hooks/useFileUpload'
-import { Battery, Zap } from 'lucide-react'
+import { Battery, Zap, AlertTriangle } from 'lucide-react'
 import { saveFormData, loadFormData, isOffline, addToSubmissionQueue, initializeOfflineSupport } from './utils/formStorage'
 import { uploadFiles } from './utils/fileUpload'
 import { getTestFormData, getTestStepNotes } from './utils/testFormData'
@@ -27,6 +27,7 @@ function App() {
   const [currentStep, setCurrentStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submissionComplete, setSubmissionComplete] = useState(false)
+  const [submissionError, setSubmissionError] = useState(null) // { message, retryable, errorCode }
   const [user, setUser] = useState(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [currentView, setCurrentView] = useState('form') // 'form' | 'history'
@@ -304,6 +305,7 @@ function App() {
     setEditingForm(null)
     setCurrentStep(1)
     setSubmissionComplete(false)
+    setSubmissionError(null)
     setCurrentView('form')
     // Clear the session temp ID so new uploads get a fresh temp ID
     clearSessionTempId()
@@ -406,6 +408,7 @@ function App() {
     localStorage.removeItem('batteryFormUser')
     setCurrentStep(1)
     setSubmissionComplete(false)
+    setSubmissionError(null)
     setCurrentView('form')
     setEditingForm(null)
     setFormId(null)
@@ -531,6 +534,7 @@ function App() {
   const onSubmit = async (data) => {
     console.log('Form submission started')
     setIsSubmitting(true)
+    setSubmissionError(null)
     
     // IMPORTANT: Disable auto-save IMMEDIATELY to prevent race conditions
     // where auto-save could overwrite the 'submitted' status
@@ -578,63 +582,92 @@ function App() {
         return;
       }
 
-      console.log('Sending form to server...')
-      const response = await fetch('/public/submit-form.php', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submissionData)
-      });
-      
-      console.log('Server response status:', response.status)
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Server response:', result)
+      // Submit with one automatic retry on retryable errors
+      const submitToServer = async () => {
+        const response = await fetch('/public/submit-form.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(submissionData)
+        });
         
-        if (result.success) {
-          if (result.requiresGdprConfirmation) {
-            alert('Formulář byl úspěšně odeslán. Na váš email jsme zaslali odkaz pro potvrzení souhlasu GDPR.');
+        console.log('Server response status:', response.status)
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Server response:', result)
+          
+          if (result.success) {
+            return result;
           } else {
-            alert('Formulář byl úspěšně odeslán!');
+            const err = new Error(result.error || 'Neznámá chyba serveru');
+            err.retryable = result.retryable || false;
+            err.errorCode = result.errorCode || 'UNKNOWN';
+            throw err;
+          }
+        } else {
+          let errorData = null;
+          try {
+            errorData = await response.json();
+          } catch {
+            // Response wasn't JSON
           }
           
-          // Clear saved form data
-          localStorage.removeItem('batteryFormData');
-          // Clear session temp ID since form is submitted
-          clearSessionTempId();
-          // Clear persisted formId since form is submitted
-          clearPersistedFormId();
-          setSubmissionComplete(true);
-          setEditingForm(null);
-          setFormId(null);
-        } else {
-          throw new Error(result.error || 'Neznámá chyba serveru');
+          const err = new Error(errorData?.error || `Chyba serveru: ${response.status}`);
+          err.retryable = errorData?.retryable ?? (response.status >= 500);
+          err.errorCode = errorData?.errorCode || 'HTTP_ERROR';
+          throw err;
         }
-      } else {
-        const errorText = await response.text()
-        console.error('Server error response:', errorText)
-        throw new Error(`Server error: ${response.status} - ${errorText}`);
+      };
+
+      let result;
+      try {
+        console.log('Sending form to server (attempt 1)...')
+        result = await submitToServer();
+      } catch (firstError) {
+        if (firstError.retryable) {
+          console.log(`First attempt failed (${firstError.errorCode}), auto-retrying in 2s...`)
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          try {
+            console.log('Sending form to server (attempt 2 - auto retry)...')
+            result = await submitToServer();
+          } catch (retryError) {
+            // Both attempts failed - throw the retry error
+            throw retryError;
+          }
+        } else {
+          throw firstError;
+        }
       }
+
+      // Success path
+      if (result.requiresGdprConfirmation) {
+        alert('Formulář byl úspěšně odeslán. Na váš email jsme zaslali odkaz pro potvrzení souhlasu GDPR.');
+      } else {
+        alert('Formulář byl úspěšně odeslán!');
+      }
+      
+      // Clear saved form data
+      localStorage.removeItem('batteryFormData');
+      clearSessionTempId();
+      clearPersistedFormId();
+      setSubmissionComplete(true);
+      setEditingForm(null);
+      setFormId(null);
+
     } catch (error) {
       console.error('Error submitting form:', error);
       
       // Re-enable auto-save since submission failed - user can continue editing
       enableAutoSave();
       
-      // Show detailed error message
-      let errorMessage = 'Došlo k chybě při odesílání formuláře: ' + error.message
-      
-      if (error.message.includes('fetch')) {
-        errorMessage += '\n\nMožné příčiny:\n- Problém s připojením k internetu\n- Server není dostupný\n- Blokování požadavku firewallem'
-      }
-      
-      alert(errorMessage)
-      
-      // Save to offline queue as fallback
-      const queueId = addToSubmissionQueue(submissionData);
-      console.log('Form saved to offline queue due to error:', queueId);
+      // Set error state for UI display (with retry button)
+      setSubmissionError({
+        message: error.message,
+        retryable: error.retryable ?? true,
+        errorCode: error.errorCode || 'UNKNOWN'
+      });
       
     } finally {
       setIsSubmitting(false);
@@ -756,6 +789,40 @@ function App() {
             <form onSubmit={methods.handleSubmit(onSubmit)} className="mt-8">
               <div className="form-step">
                 {renderStep()}
+
+                {/* Submission Error Banner */}
+                {submissionError && (
+                  <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <h4 className="text-sm font-semibold text-red-800">Chyba při odesílání formuláře</h4>
+                        <p className="text-sm text-red-700 mt-1">{submissionError.message}</p>
+                        {submissionError.retryable && (
+                          <p className="text-xs text-red-600 mt-1">Data formuláře jsou uložena. Můžete to zkusit znovu.</p>
+                        )}
+                        <div className="mt-3 flex gap-2">
+                          {submissionError.retryable && (
+                            <button
+                              type="submit"
+                              disabled={isSubmitting}
+                              className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50"
+                            >
+                              {isSubmitting ? 'Odesílám...' : 'Zkusit znovu'}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setSubmissionError(null)}
+                            className="px-4 py-2 text-sm font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-md"
+                          >
+                            Zavřít
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Navigation Buttons */}
                 <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">

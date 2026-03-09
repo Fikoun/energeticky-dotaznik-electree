@@ -80,6 +80,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+// Load Logger class
+require_once __DIR__ . '/../includes/Logger.php';
+
 try {
     // Get JSON input
     $input = file_get_contents('php://input');
@@ -93,10 +96,12 @@ try {
 
     $useDatabase = false;
     $pdo = null;
+    $logger = null;
     
     try {
         $pdo = getDbConnection();
         $useDatabase = true;
+        $logger = new Logger($pdo);
         error_log("Submit form - Database connected successfully");
     } catch (Exception $e) {
         error_log("Database connection failed: " . $e->getMessage());
@@ -114,6 +119,20 @@ try {
         throw new Exception('Chybí identifikace uživatele');
     }
 
+    // For final submissions, database is mandatory - refuse to proceed without it
+    if (!$isDraft && !$useDatabase) {
+        error_log("CRITICAL: Final form submission attempted but database is unavailable");
+        ob_end_clean();
+        http_response_code(503);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Databáze je momentálně nedostupná. Zkuste to prosím znovu.',
+            'retryable' => true,
+            'errorCode' => 'DB_UNAVAILABLE'
+        ]);
+        exit;
+    }
+
     // Prepare basic form data
     $formData = json_encode($data, JSON_UNESCAPED_UNICODE);
     $currentTime = date('Y-m-d H:i:s');
@@ -128,7 +147,17 @@ try {
 
     $formId = null;
     
+    // Set logger context
+    if ($logger) {
+        $logger->setUserId(is_numeric($userId) ? (int)$userId : null);
+    }
+    
     if ($useDatabase) {
+        // Start transaction for non-draft submissions to ensure atomicity
+        if (!$isDraft) {
+            $pdo->beginTransaction();
+        }
+        
         // Ensure user exists in database (for foreign key constraint)
         $userEmail = $data['user']['email'] ?? 'unknown@electree.cz';
         $userName = $data['user']['name'] ?? 'Unknown User';
@@ -283,7 +312,7 @@ try {
             }
         }
     } else {
-        // Fallback bez databáze
+        // Fallback bez databáze - only allowed for drafts (final submissions blocked above)
         $formId = $data['formId'] ?? uniqid('mock_form_' . $userId . '_');
         error_log("Submit form - Using mock storage (no database): $formId");
     }
@@ -311,10 +340,32 @@ try {
     // Send GDPR confirmation email for final submissions
     $gdprToken = bin2hex(random_bytes(32));
     
-    // Store GDPR token if database available
+    // Store GDPR token in database (inside transaction)
     if ($useDatabase) {
         $stmt = $pdo->prepare("UPDATE forms SET gdpr_token = ? WHERE id = ?");
         $stmt->execute([$gdprToken, $formId]);
+
+        // Set Raynet sync status to 'pending' – actual sync happens after GDPR confirmation
+        try {
+            $stmt = $pdo->prepare("UPDATE forms SET raynet_sync_status = 'pending' WHERE id = ?");
+            $stmt->execute([$formId]);
+        } catch (Exception $e) {
+            error_log("Failed to set raynet_sync_status to pending: " . $e->getMessage());
+            // Non-critical, don't fail the transaction
+        }
+
+        // Commit transaction - form data is now safely stored
+        $pdo->commit();
+        error_log("Submit form - Transaction committed successfully for: $formId");
+        
+        if ($logger) {
+            $logger->info(Logger::TYPE_FORM, 'Form submitted and stored successfully', [
+                'form_id' => $formId,
+                'company' => $companyName,
+                'email' => $email,
+                'contact' => $contactPerson
+            ]);
+        }
     }
 
     // Prepare email content
@@ -366,19 +417,16 @@ try {
     
     if (!$emailSent) {
         error_log("Failed to send GDPR confirmation email to: " . $email);
-        // Continue, don't fail the submission
+        if ($logger) {
+            $logger->warning(Logger::TYPE_FORM, 'GDPR email failed to send', [
+                'form_id' => $formId,
+                'email' => $email,
+                'contact' => $contactPerson
+            ]);
+        }
+        // Continue, don't fail the submission - data is already committed
     } else {
         error_log("GDPR confirmation email sent successfully to: " . $email);
-    }
-
-    // Set Raynet sync status to 'pending' – actual sync happens after GDPR confirmation
-    if ($useDatabase) {
-        try {
-            $stmt = $pdo->prepare("UPDATE forms SET raynet_sync_status = 'pending' WHERE id = ?");
-            $stmt->execute([$formId]);
-        } catch (Exception $e) {
-            error_log("Failed to set raynet_sync_status to pending: " . $e->getMessage());
-        }
     }
 
     // Return success response
@@ -394,32 +442,66 @@ try {
     error_log("Submit form - Process completed successfully for: $formId");
 
 } catch (Exception $e) {
+    // Rollback transaction if active
+    if (isset($pdo) && $pdo && $pdo->inTransaction()) {
+        $pdo->rollBack();
+        error_log("Submit form - Transaction rolled back due to error");
+    }
+    
     // Clean any HTML output to ensure pure JSON
     ob_end_clean();
     
     error_log("Form submission error: " . $e->getMessage());
     error_log("Stack trace: " . $e->getTraceAsString());
     
+    // Log to database if possible
+    if (isset($logger) && $logger) {
+        $logger->error(Logger::TYPE_FORM, 'Form submission failed: ' . $e->getMessage(), [
+            'form_id' => $formId ?? null,
+            'company' => $companyName ?? null,
+            'email' => $email ?? null,
+            'error_file' => $e->getFile(),
+            'error_line' => $e->getLine()
+        ]);
+    }
+    
+    // Determine if retryable (DB errors are retryable, validation errors are not)
+    $isRetryable = ($e instanceof PDOException) || strpos($e->getMessage(), 'databáz') !== false;
+    
     http_response_code(500);
     echo json_encode([
         'success' => false,
         'error' => $e->getMessage(),
-        'debug' => [
-            'file' => $e->getFile(),
-            'line' => $e->getLine()
-        ]
+        'retryable' => $isRetryable,
+        'errorCode' => $isRetryable ? 'DB_ERROR' : 'SUBMISSION_ERROR'
     ]);
 } catch (Throwable $e) {
+    // Rollback transaction if active
+    if (isset($pdo) && $pdo && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    
     // Zachytit i fatal errors
     ob_end_clean();
     
     error_log("Submit form fatal error: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
     error_log("Stack trace: " . $e->getTraceAsString());
     
+    // Log to database if possible
+    if (isset($logger) && $logger) {
+        $logger->critical(Logger::TYPE_FORM, 'Fatal form submission error: ' . $e->getMessage(), [
+            'form_id' => $formId ?? null,
+            'error_file' => $e->getFile(),
+            'error_line' => $e->getLine()
+        ]);
+    }
+    
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Vnitřní chyba serveru: ' . $e->getMessage()
+        'error' => 'Vnitřní chyba serveru: ' . $e->getMessage(),
+        'retryable' => true,
+        'errorCode' => 'FATAL_ERROR'
     ]);
 }
 ?>
