@@ -208,7 +208,7 @@ try {
                 WHERE id = ? AND user_id = ?
             ");
             
-            $status = $isDraft ? 'draft' : 'submitted';
+            $status = $isDraft ? 'draft' : 'pending';
             $result = $stmt->execute([
                 $companyName,
                 $contactPerson, 
@@ -231,7 +231,7 @@ try {
         } else {
             // Create new form
             $formId = uniqid('form_' . $userId . '_');
-            $status = $isDraft ? 'draft' : 'submitted';
+            $status = $isDraft ? 'draft' : 'pending';
             
             error_log("Submit form - Creating new form ID: $formId");
             

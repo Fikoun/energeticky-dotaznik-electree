@@ -339,9 +339,9 @@ header('Content-Type: text/html; charset=utf-8');
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    ${form.created_at ? new Date(form.created_at).toLocaleDateString('cs-CZ') : '-'}
+                                    ${form.created_at ? new Date(form.created_at).toLocaleString('cs-CZ', { dateStyle: 'short', timeStyle: 'short' }) : '-'}
                                     <div class="text-xs text-gray-400">
-                                        ${form.updated_at ? 'Aktualizováno: ' + new Date(form.updated_at).toLocaleDateString('cs-CZ') : ''}
+                                        ${form.updated_at ? 'Aktualizováno: ' + new Date(form.updated_at).toLocaleString('cs-CZ', { dateStyle: 'short', timeStyle: 'short' }) : ''}
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
