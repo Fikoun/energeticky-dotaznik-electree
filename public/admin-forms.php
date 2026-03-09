@@ -361,12 +361,11 @@ header('Content-Type: text/html; charset=utf-8');
 
         function getFormStatusClass(status) {
             switch(status) {
-                case 'pending':
-                case 'draft': return 'bg-yellow-100 text-yellow-800';
+                case 'draft': return 'bg-gray-100 text-gray-800';
+                case 'pending': return 'bg-amber-100 text-amber-800';
                 case 'processing': return 'bg-blue-100 text-blue-800';
-                case 'completed':
-                case 'confirmed':
-                case 'submitted': return 'bg-green-100 text-green-800';
+                case 'confirmed': return 'bg-green-100 text-green-800';
+                case 'completed': return 'bg-green-100 text-green-800';
                 case 'cancelled':
                 case 'deleted': return 'bg-red-100 text-red-800';
                 default: return 'bg-gray-100 text-gray-800';
@@ -375,12 +374,11 @@ header('Content-Type: text/html; charset=utf-8');
 
         function getFormStatusLabel(status) {
             switch(status) {
-                case 'pending': return 'Čekající';
                 case 'draft': return 'Rozpracováno';
+                case 'pending': return 'Čeká na GDPR';
                 case 'processing': return 'Zpracovává se';
+                case 'confirmed': return 'GDPR potvrzeno';
                 case 'completed': return 'Dokončeno';
-                case 'confirmed': return 'Potvrzeno';
-                case 'submitted': return 'Odesláno';
                 case 'cancelled': return 'Zrušeno';
                 case 'deleted': return 'Smazáno';
                 default: return status || 'Neznámý';
@@ -414,8 +412,8 @@ header('Content-Type: text/html; charset=utf-8');
         function updateFormsStats(forms) {
             const stats = {
                 total: forms.length,
-                completed: forms.filter(f => ['completed', 'confirmed', 'submitted'].includes(f.status)).length,
-                pending: forms.filter(f => ['pending', 'draft'].includes(f.status)).length,
+                completed: forms.filter(f => ['completed', 'confirmed'].includes(f.status)).length,
+                pending: forms.filter(f => ['pending', 'draft', 'processing'].includes(f.status)).length,
                 monthly: forms.filter(f => {
                     if (!f.created_at) return false;
                     const created = new Date(f.created_at);

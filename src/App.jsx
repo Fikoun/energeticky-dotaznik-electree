@@ -322,13 +322,33 @@ function App() {
   useEffect(() => {
     initializeOfflineSupport();
     
-    // Load saved user data from localStorage
+    // Load saved user data from localStorage and re-validate session
     try {
       const savedUser = localStorage.getItem('batteryFormUser');
       if (savedUser) {
         const userData = JSON.parse(savedUser);
-        console.log('Restored user from localStorage:', userData);
-        setUser(userData);
+        // Reject old numeric IDs (bug: auth.php used to return id:1)
+        if (typeof userData.id === 'number' || /^\d+$/.test(String(userData.id))) {
+          console.warn('Stale numeric user ID detected, forcing re-login');
+          localStorage.removeItem('batteryFormUser');
+        } else {
+          console.log('Restored user from localStorage:', userData);
+          setUser(userData);
+          // Re-validate session with server to get fresh user data
+          fetch('/auth.php', { credentials: 'include' })
+            .then(r => r.json())
+            .then(result => {
+              if (result.success && result.authenticated && result.user) {
+                const freshUser = { ...userData, id: result.user.id };
+                if (freshUser.id !== userData.id) {
+                  console.log('Updated user ID from server:', freshUser.id);
+                  setUser(freshUser);
+                  localStorage.setItem('batteryFormUser', JSON.stringify(freshUser));
+                }
+              }
+            })
+            .catch(() => { /* session check failed, keep local data */ });
+        }
       }
     } catch (error) {
       console.error('Error loading saved user:', error);

@@ -99,24 +99,93 @@ try {
                 exit(0);
             }
             
-            // Simple hardcoded authentication
-            if ($username === 'admin' && $password === 'admin123') {
-                $_SESSION['user_id'] = 1;
-                $_SESSION['username'] = 'admin';
-                $_SESSION['user_email'] = 'admin@electree.cz';
-                $_SESSION['user_role'] = 'admin';
+            // Load database to look up real user
+            $dbConfigPath = __DIR__ . '/config/database.php';
+            if (file_exists($dbConfigPath)) {
+                require_once $dbConfigPath;
+            }
+            
+            // Authenticate against database first, fall back to hardcoded admin
+            $authenticatedUser = null;
+            
+            if (function_exists('getDbConnection')) {
+                try {
+                    $pdo = getDbConnection();
+                    $stmt = $pdo->prepare("SELECT id, name, email, role, password FROM users WHERE email = ? OR name = ? LIMIT 1");
+                    $stmt->execute([$username, $username]);
+                    $dbUser = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if ($dbUser) {
+                        // Check password - support both hashed and legacy plain check
+                        $passwordValid = false;
+                        if (!empty($dbUser['password'])) {
+                            $passwordValid = password_verify($password, $dbUser['password']);
+                        }
+                        // Hardcoded admin fallback check
+                        if (!$passwordValid && $dbUser['role'] === 'admin' && $username === 'admin' && $password === 'admin123') {
+                            $passwordValid = true;
+                        }
+                        
+                        if ($passwordValid) {
+                            $authenticatedUser = [
+                                'id' => $dbUser['id'],
+                                'name' => $dbUser['name'],
+                                'email' => $dbUser['email'],
+                                'role' => $dbUser['role']
+                            ];
+                        }
+                    }
+                } catch (Exception $e) {
+                    error_log("Auth DB lookup failed: " . $e->getMessage());
+                    // Fall through to hardcoded check
+                }
+            }
+            
+            // Fallback: hardcoded admin credentials (lookup real ID from DB)
+            if (!$authenticatedUser && $username === 'admin' && $password === 'admin123') {
+                $adminId = 'admin_' . substr(md5('admin@electree.cz'), 0, 13);
+                
+                // Try to find or create the admin user in DB
+                if (function_exists('getDbConnection')) {
+                    try {
+                        $pdo = getDbConnection();
+                        // Find existing admin user
+                        $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY created_at ASC LIMIT 1");
+                        $stmt->execute();
+                        $existingAdmin = $stmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        if ($existingAdmin) {
+                            $adminId = $existingAdmin['id'];
+                        } else {
+                            // Create admin user if not exists
+                            $stmt = $pdo->prepare("INSERT IGNORE INTO users (id, name, email, role, is_active, created_at) VALUES (?, 'admin', 'admin@electree.cz', 'admin', 1, NOW())");
+                            $stmt->execute([$adminId]);
+                        }
+                    } catch (Exception $e) {
+                        error_log("Auth admin user lookup failed: " . $e->getMessage());
+                    }
+                }
+                
+                $authenticatedUser = [
+                    'id' => $adminId,
+                    'name' => 'Administrator',
+                    'email' => 'admin@electree.cz',
+                    'role' => 'admin'
+                ];
+            }
+            
+            if ($authenticatedUser) {
+                $_SESSION['user_id'] = $authenticatedUser['id'];
+                $_SESSION['username'] = $authenticatedUser['name'];
+                $_SESSION['user_email'] = $authenticatedUser['email'];
+                $_SESSION['user_role'] = $authenticatedUser['role'];
                 $_SESSION['is_logged_in'] = true;
                 
                 http_response_code(200);
                 echo json_encode([
                     'success' => true,
                     'message' => 'Login successful',
-                    'user' => [
-                        'id' => 1,
-                        'name' => 'Administrator',
-                        'email' => 'admin@electree.cz',
-                        'role' => 'admin'
-                    ]
+                    'user' => $authenticatedUser
                 ]);
                 exit(0);
             } else {
