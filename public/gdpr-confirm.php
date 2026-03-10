@@ -549,6 +549,27 @@ function normalizeCheckboxGroup(array $value): array {
 }
 
 function formatFieldValue($key, $value, $formData = null) {
+
+    // sameAsCompanyAddress — hide when false, show contextual note when true
+    if ($key === 'sameAsCompanyAddress') {
+        if (empty($value) || $value === 'false' || $value === false || $value === 0 || $value === '0') {
+            return ''; // signal to skip this row entirely
+        }
+        return '<div style="display:inline-flex;align-items:center;gap:8px;background:#e8f5e8;border:1px solid #a8d5a2;padding:8px 14px;border-radius:6px;color:#1a6b2e;font-weight:600;">' .
+               '<i class="fas fa-check-circle" style="color:#28a745;"></i>' .
+               ' Adresa odběrného místa je shodná s adresou sídla firmy' .
+               '</div>';
+    }
+
+    // address — annotate when sameAsCompanyAddress is set
+    if ($key === 'address' && !empty($formData['sameAsCompanyAddress']) &&
+        $formData['sameAsCompanyAddress'] !== 'false' && $formData['sameAsCompanyAddress'] !== false) {
+        $addressHtml = '<span style="color:#333;font-weight:500;">' . htmlspecialchars((string)$value) . '</span>';
+        $addressHtml .= ' <span style="font-size:12px;background:#fff3cd;border:1px solid #ffc107;padding:2px 8px;border-radius:10px;color:#856404;margin-left:6px;">' .
+                        '<i class="fas fa-copy"></i> shodná se sídlem firmy</span>';
+        return $addressHtml;
+    }
+
     if (is_null($value) || $value === '' || $value === false || (is_array($value) && empty($value))) {
         return '<span style="color: #999; font-style: italic;">Nevyplněno</span>';
     }
@@ -1177,14 +1198,17 @@ function showConfirmationForm($form, $formData) {
                             </h2>
                         </div>
                         
-                        <?php foreach ($step_data as $key => $value): ?>
+                        <?php foreach ($step_data as $key => $value):
+                            $formatted = formatFieldValue($key, $value, $formData);
+                            if ($formatted === '') continue;
+                        ?>
                             <div class="field-row">
                                 <div class="field-label">
                                     <i class="<?php echo getFieldIcon($key); ?>"></i>
                                     <?php echo getFieldLabel($key); ?>
                                 </div>
                                 <div class="field-value">
-                                    <?php echo formatFieldValue($key, $value, $formData); ?>
+                                    <?php echo $formatted; ?>
                                 </div>
                             </div>
                         <?php endforeach; ?>
