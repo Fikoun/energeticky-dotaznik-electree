@@ -8,7 +8,7 @@
 
 return [
     'username' => 'marketing@electree.cz',  // Raynet login email
-    'api_key' => 'crm-YQw0MQkOCBkL1MzpMFMIsD1TT7g',            // Raynet API key (from Settings > API)
+    'api_key' => 'crm-AKvrDPdYisHo8mb28goXIpz5vIA',            // Raynet API key (from Settings > API)
     'instance_name' => 'electree',      // Raynet instance name
     
     'timeout' => 30,                         // HTTP timeout in seconds
