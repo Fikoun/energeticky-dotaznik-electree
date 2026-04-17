@@ -40,9 +40,9 @@ class RaynetApiClient
     }
     
     /**
-     * Create client from config file
+     * Create client from config file (legacy global config)
      */
-    public static function fromConfig(string $configPath = null): self
+    public static function fromConfig(?string $configPath = null): self
     {
         $configPath = $configPath ?? dirname(__DIR__, 2) . '/config/raynet.php';
         
@@ -56,6 +56,38 @@ class RaynetApiClient
             $config['username'] ?? '',
             $config['api_key'] ?? '',
             $config['instance_name'] ?? '',
+            $config['timeout'] ?? 30,
+            $config['retry_attempts'] ?? 3,
+            $config['retry_delay'] ?? 2
+        );
+    }
+    
+    /**
+     * Create client from per-user credentials stored in the database.
+     * 
+     * @param string $userId User ID
+     * @param \PDO $pdo Database connection
+     * @return self
+     * @throws RaynetException If user has no Raynet credentials configured
+     */
+    public static function fromUserCredentials(string $userId, \PDO $pdo): self
+    {
+        $stmt = $pdo->prepare("SELECT raynet_username, raynet_api_key, raynet_instance_name FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        $creds = $stmt->fetch(\PDO::FETCH_ASSOC);
+        
+        if (!$creds || empty($creds['raynet_api_key'])) {
+            throw new RaynetException("Uživatel nemá nastavené Raynet přihlašovací údaje");
+        }
+        
+        // Load timeout/retry settings from global config if available
+        $configPath = dirname(__DIR__, 2) . '/config/raynet.php';
+        $config = file_exists($configPath) ? (require $configPath) : [];
+        
+        return new self(
+            $creds['raynet_username'],
+            $creds['raynet_api_key'],
+            $creds['raynet_instance_name'],
             $config['timeout'] ?? 30,
             $config['retry_attempts'] ?? 3,
             $config['retry_delay'] ?? 2

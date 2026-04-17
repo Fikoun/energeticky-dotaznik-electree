@@ -28,12 +28,40 @@ class RaynetConnector
     }
     
     /**
-     * Create connector from config with optional database
+     * Create connector from global config with optional database (legacy)
+     * @deprecated Use createForUser() instead
      */
     public static function create(?\PDO $pdo = null): self
     {
         $client = RaynetApiClient::fromConfig();
         return new self($client, $pdo);
+    }
+    
+    /**
+     * Create connector using a specific user's Raynet credentials.
+     * 
+     * @param string $userId User ID whose Raynet credentials to use
+     * @param \PDO|null $pdo Database connection (will be created if null)
+     * @return self
+     */
+    public static function createForUser(string $userId, ?\PDO $pdo = null): self
+    {
+        if (!$pdo) {
+            require_once dirname(__DIR__, 2) . '/config/database.php';
+            $pdo = getDbConnection();
+        }
+        $client = RaynetApiClient::fromUserCredentials($userId, $pdo);
+        return new self($client, $pdo);
+    }
+    
+    /**
+     * Check if a user has Raynet credentials configured.
+     */
+    public static function isUserConfigured(string $userId, \PDO $pdo): bool
+    {
+        $stmt = $pdo->prepare("SELECT raynet_api_key FROM users WHERE id = ? AND raynet_api_key IS NOT NULL AND raynet_api_key != ''");
+        $stmt->execute([$userId]);
+        return $stmt->fetchColumn() !== false;
     }
     
     /**

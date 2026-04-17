@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useForm, FormProvider } from 'react-hook-form'
 import { FileText, Edit, Trash2, Eye, Calendar, User, Building, Phone, Mail, ArrowLeft } from 'lucide-react'
+import PublicLinksManager from './PublicLinksManager'
 
 const FormHistory = ({ user, onEditForm, onBackToForms }) => {
   const [forms, setForms] = useState([])
@@ -208,6 +209,11 @@ const FormHistory = ({ user, onEditForm, onBackToForms }) => {
           ))}
         </div>
       )}
+
+      {/* Public Links Manager */}
+      <div className="mt-8">
+        <PublicLinksManager user={user} />
+      </div>
     </div>
   )
 }

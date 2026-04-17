@@ -113,6 +113,39 @@ try {
     $isUpdate = isset($data['formId']) && !empty($data['formId']);
     $userId = $data['user']['id'] ?? null;
 
+    // Public link support: validate and extract owner info
+    $publicLinkId = null;
+    $publicLinkOwnerUserId = null;
+    if (!empty($data['publicLink']['token'])) {
+        $publicToken = $data['publicLink']['token'];
+        // Validate token format
+        if (!preg_match('/^[a-f0-9]{64}$/', $publicToken)) {
+            throw new Exception('Neplatný veřejný token');
+        }
+        
+        if ($useDatabase) {
+            $linkStmt = $pdo->prepare("
+                SELECT id, owner_user_id, recipient_email, status, expires_at
+                FROM public_form_links
+                WHERE token = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > NOW())
+            ");
+            $linkStmt->execute([$publicToken]);
+            $publicLink = $linkStmt->fetch();
+            
+            if (!$publicLink) {
+                throw new Exception('Veřejný odkaz je neplatný nebo vypršel');
+            }
+            
+            $publicLinkId = (int)$publicLink['id'];
+            $publicLinkOwnerUserId = $publicLink['owner_user_id'];
+            
+            // Use the link owner's user_id for the form – this ensures Raynet sync uses their API key
+            $userId = $publicLinkOwnerUserId;
+            
+            error_log("Submit form - Public link validated: link_id=$publicLinkId, owner=$publicLinkOwnerUserId");
+        }
+    }
+
     error_log("Submit form - Processing: isDraft=$isDraft, isUpdate=$isUpdate, userId=$userId");
 
     if (!$userId) {
@@ -242,8 +275,8 @@ try {
             $stmt = $pdo->prepare("
                 INSERT INTO forms (
                     id, user_id, company_name, contact_person, email, phone,
-                    form_data, status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    form_data, status, public_link_id, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
             
             $result = $stmt->execute([
@@ -255,6 +288,7 @@ try {
                 $phone,
                 $formData,
                 $status,
+                $publicLinkId,
                 $currentTime,
                 $currentTime
             ]);
@@ -365,6 +399,21 @@ try {
         // Commit transaction - form data is now safely stored
         $pdo->commit();
         error_log("Submit form - Transaction committed successfully for: $formId");
+        
+        // Mark public link as used (outside transaction – non-critical)
+        if ($publicLinkId) {
+            try {
+                $linkUpdateStmt = $pdo->prepare("
+                    UPDATE public_form_links 
+                    SET status = 'used', form_id = ?, used_at = NOW()
+                    WHERE id = ?
+                ");
+                $linkUpdateStmt->execute([$formId, $publicLinkId]);
+                error_log("Submit form - Public link $publicLinkId marked as used");
+            } catch (Exception $e) {
+                error_log("Submit form - Failed to update public link status: " . $e->getMessage());
+            }
+        }
         
         if ($logger) {
             $logger->info(Logger::TYPE_FORM, 'Form submitted and stored successfully', [

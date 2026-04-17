@@ -33,17 +33,29 @@ require_once __DIR__ . '/../includes/Raynet/RaynetConnector.php';
 use Raynet\RaynetConnector;
 use Raynet\RaynetException;
 
+// Start session to get user ID
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params(["path" => "/", "httponly" => true, "samesite" => "Lax"]);
+    session_start();
+}
+
 try {
     $action = $_GET['action'] ?? $_POST['action'] ?? 'status';
     $formId = $_GET['form_id'] ?? $_POST['form_id'] ?? null;
     
     $pdo = getDbConnection();
-    $connector = RaynetConnector::create($pdo);
     
-    // Check if configured
-    if (!$connector->isConfigured()) {
-        throw new RaynetException("Raynet connector is not configured. Please update config/raynet.php");
+    // Determine which user's credentials to use
+    $userId = $_SESSION['user_id'] ?? null;
+    if (!$userId) {
+        throw new RaynetException("Není přihlášen žádný uživatel");
     }
+    
+    if (!RaynetConnector::isUserConfigured($userId, $pdo)) {
+        throw new RaynetException("Nemáte nastavené Raynet API přihlašovací údaje. Nastavte je v sekci Raynet API.");
+    }
+    
+    $connector = RaynetConnector::createForUser($userId, $pdo);
     
     $result = [];
     

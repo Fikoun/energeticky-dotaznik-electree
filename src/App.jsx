@@ -20,8 +20,16 @@ import { Battery, Zap, AlertTriangle } from 'lucide-react'
 import { saveFormData, loadFormData, isOffline, addToSubmissionQueue, initializeOfflineSupport } from './utils/formStorage'
 import { uploadFiles } from './utils/fileUpload'
 import { getTestFormData, getTestStepNotes } from './utils/testFormData'
+import PublicFormGate from './components/PublicFormGate'
+import PublicLinksManager from './components/PublicLinksManager'
 
 const TOTAL_STEPS = 8
+
+// Check for public form token in URL
+function getPublicToken() {
+  const params = new URLSearchParams(window.location.search)
+  return params.get('public') || null
+}
 
 function App() {
   const [currentStep, setCurrentStep] = useState(1)
@@ -32,6 +40,10 @@ function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [currentView, setCurrentView] = useState('form') // 'form' | 'history'
   const [editingForm, setEditingForm] = useState(null)
+  
+  // Public form mode
+  const [publicToken] = useState(() => getPublicToken())
+  const [publicLinkData, setPublicLinkData] = useState(null) // authenticated public link info
   
   // Nové stavy pro poznámky a navigaci
   const [visitedSteps, setVisitedSteps] = useState(new Set([1])) // Uživatel začíná na kroku 1
@@ -165,7 +177,13 @@ function App() {
   })
 
   // Auto-save functionality
-  const autoSaveStatus = useAutoSave(methods, user, currentStep)
+  // In public mode, create a synthetic user from the link's owner so auto-save works
+  const effectiveUser = user || (publicLinkData ? {
+    id: publicLinkData.owner_user_id,
+    name: publicLinkData.recipient_name || 'Public User',
+    email: publicLinkData.recipient_email,
+  } : null)
+  const autoSaveStatus = useAutoSave(methods, effectiveUser, currentStep)
   const { formId, setFormId, disableAutoSave, enableAutoSave } = autoSaveStatus
 
   const handleLogin = (userData) => {
@@ -562,7 +580,8 @@ function App() {
     
     try {
       // Generate or use existing form ID
-      const currentFormId = formId || `form_${user?.id || 'anonymous'}_${Date.now()}`;
+      const submittingUser = user || (publicLinkData ? { id: publicLinkData.owner_user_id } : null)
+      const currentFormId = formId || `form_${submittingUser?.id || 'anonymous'}_${Date.now()}`;
       
       // Step 1: Upload files first
       console.log('Uploading files...')
@@ -578,6 +597,18 @@ function App() {
           id: user.id,
           name: user.fullName || user.name,
           email: user.email
+        } : publicLinkData ? {
+          id: publicLinkData.owner_user_id,
+          name: publicLinkData.recipient_name || 'Public User',
+          email: publicLinkData.recipient_email,
+        } : null,
+        // Public link context – tells backend to use owner's credentials
+        publicLink: publicLinkData ? {
+          token: publicLinkData.token,
+          link_id: publicLinkData.link_id,
+          owner_user_id: publicLinkData.owner_user_id,
+          recipient_email: publicLinkData.recipient_email,
+          recipient_name: publicLinkData.recipient_name,
         } : null,
         formId: currentFormId,
         submittedAt: new Date().toISOString(),
@@ -736,13 +767,31 @@ function App() {
     }
   }
 
-  // Pokud uživatel není přihlášený, zobraz login
-  if (!user) {
+  // Pokud uživatel není přihlášený, zobraz login nebo public gate
+  if (!user && !publicLinkData) {
+    // Public form mode – show gate instead of login
+    if (publicToken) {
+      return (
+        <PublicFormGate
+          token={publicToken}
+          onAuthenticated={(data) => {
+            setPublicLinkData(data)
+            // Prefill email from the link
+            if (data.recipient_email) {
+              methods.setValue('email', data.recipient_email)
+            }
+            if (data.recipient_name) {
+              methods.setValue('contactPerson', data.recipient_name)
+            }
+          }}
+        />
+      )
+    }
     return <Login onLogin={handleLogin} />
   }
 
-  // Pokud je zobrazena historie formulářů
-  if (currentView === 'history') {
+  // Pokud je zobrazena historie formulářů (not available in public mode)
+  if (currentView === 'history' && !publicLinkData) {
     return (
       <FormHistory 
         user={user} 
@@ -755,16 +804,30 @@ function App() {
   return (
     <FormProvider {...methods}>
       <div className="min-h-screen bg-gray-50">
-        {/* Top Bar */}
-        <TopBar 
-          user={user}
-          currentView={currentView}
-          onViewChange={setCurrentView}
-          onLogout={handleLogout}
-          autoSaveStatus={autoSaveStatus}
-          onNewForm={handleNewForm}
-          onPrefillTestData={handlePrefillTestData}
-        />
+        {/* Top Bar - simplified for public users */}
+        {publicLinkData ? (
+          <div className="bg-white border-b border-gray-200 px-4 py-3">
+            <div className="max-w-4xl mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Battery className="h-5 w-5 text-primary-600" />
+                <span className="font-semibold text-gray-900">Electree</span>
+              </div>
+              <div className="text-sm text-gray-500">
+                {autoSaveStatus.isSaving ? 'Ukládám...' : autoSaveStatus.lastSaved ? 'Uloženo' : ''}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <TopBar 
+            user={user}
+            currentView={currentView}
+            onViewChange={setCurrentView}
+            onLogout={handleLogout}
+            autoSaveStatus={autoSaveStatus}
+            onNewForm={handleNewForm}
+            onPrefillTestData={handlePrefillTestData}
+          />
+        )}
 
         <div className="py-8 px-4">
           <div className="max-w-4xl mx-auto">

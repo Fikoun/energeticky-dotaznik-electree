@@ -364,17 +364,28 @@ function getSyncStats(PDO $pdo): array
 
 function checkRaynetStatus(): array
 {
+    $userId = $_SESSION['user_id'] ?? null;
+    if (!$userId) {
+        return [
+            'connected' => false,
+            'configured' => false,
+            'message' => 'Není přihlášen žádný uživatel',
+            'companies_count' => 0
+        ];
+    }
+    
     try {
-        $connector = RaynetConnector::create();
-        
-        if (!$connector->isConfigured()) {
+        $pdo = getDbConnection();
+        if (!RaynetConnector::isUserConfigured($userId, $pdo)) {
             return [
                 'connected' => false,
                 'configured' => false,
-                'message' => 'Raynet není nakonfigurován',
+                'message' => 'Nemáte nastavené Raynet API přihlašovací údaje',
                 'companies_count' => 0
             ];
         }
+        
+        $connector = RaynetConnector::createForUser($userId, $pdo);
         
         // Try to fetch companies count
         $company = $connector->company();
@@ -500,15 +511,21 @@ function getSyncStatusLabel(array $form): array
 
 function getRaynetCompanies(int $page, int $perPage, string $search): array
 {
+    $userId = $_SESSION['user_id'] ?? null;
+    if (!$userId) {
+        return ['success' => false, 'error' => 'Není přihlášen žádný uživatel'];
+    }
+    
     try {
-        $connector = RaynetConnector::create();
-        
-        if (!$connector->isConfigured()) {
+        $pdo = getDbConnection();
+        if (!RaynetConnector::isUserConfigured($userId, $pdo)) {
             return [
                 'success' => false,
-                'error' => 'Raynet není nakonfigurován'
+                'error' => 'Nemáte nastavené Raynet API přihlašovací údaje'
             ];
         }
+        
+        $connector = RaynetConnector::createForUser($userId, $pdo);
         
         $company = $connector->company();
         $offset = ($page - 1) * $perPage;
@@ -567,7 +584,11 @@ function previewSync(PDO $pdo, $formId): array
             throw new Exception("Form not found: {$formId}");
         }
         
-        $connector = RaynetConnector::create($pdo);
+        $userId = $_SESSION['user_id'] ?? null;
+        if (!$userId || !RaynetConnector::isUserConfigured($userId, $pdo)) {
+            return ['success' => false, 'error' => 'Nemáte nastavené Raynet API přihlašovací údaje'];
+        }
+        $connector = RaynetConnector::createForUser($userId, $pdo);
         
         // Check if company exists in Raynet
         $raynetExists = false;
@@ -757,13 +778,17 @@ function syncSingleForm(PDO $pdo, $formId, ?int $targetCompanyId = null): array
             throw new Exception("Form not found: {$formId}");
         }
         
-        $logger->debug(Logger::TYPE_RAYNET, "Creating RaynetConnector");
-        $connector = RaynetConnector::create($pdo);
-        
-        if (!$connector) {
-            $logger->error(Logger::TYPE_RAYNET, "Failed to create RaynetConnector");
-            throw new Exception("Failed to create RaynetConnector");
+        $logger->debug(Logger::TYPE_RAYNET, "Creating RaynetConnector for user");
+        $userId = $_SESSION['user_id'] ?? null;
+        if (!$userId) {
+            $logger->error(Logger::TYPE_RAYNET, "No user logged in for Raynet sync");
+            throw new Exception("Není přihlášen žádný uživatel");
         }
+        if (!RaynetConnector::isUserConfigured($userId, $pdo)) {
+            $logger->error(Logger::TYPE_RAYNET, "User has no Raynet credentials configured");
+            throw new Exception("Nemáte nastavené Raynet API přihlašovací údaje");
+        }
+        $connector = RaynetConnector::createForUser($userId, $pdo);
         
         $logger->info(Logger::TYPE_RAYNET, "Starting sync for form #{$formId}", [
             'company_name' => $form['company_name'],
@@ -810,12 +835,11 @@ function syncAllPending(PDO $pdo): array
     try {
         $logger->info(Logger::TYPE_RAYNET, 'Starting bulk sync of pending forms');
         
-        $connector = RaynetConnector::create($pdo);
-        
-        if (!$connector->isConfigured()) {
-            $logger->warning(Logger::TYPE_RAYNET, 'Raynet not configured, cannot sync');
-            throw new Exception('Raynet není nakonfigurován. Aktualizujte config/raynet.php');
+        $userId = $_SESSION['user_id'] ?? null;
+        if (!$userId || !RaynetConnector::isUserConfigured($userId, $pdo)) {
+            throw new Exception('Nemáte nastavené Raynet API přihlašovací údaje');
         }
+        $connector = RaynetConnector::createForUser($userId, $pdo);
         
         $result = $connector->syncPendingForms();
         
@@ -855,7 +879,11 @@ function retryErrors(PDO $pdo): array
     ");
     $forms = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
-    $connector = RaynetConnector::create($pdo);
+    $userId = $_SESSION['user_id'] ?? null;
+    if (!$userId || !RaynetConnector::isUserConfigured($userId, $pdo)) {
+        throw new Exception('Nemáte nastavené Raynet API přihlašovací údaje');
+    }
+    $connector = RaynetConnector::createForUser($userId, $pdo);
     $success = 0;
     $failed = 0;
     
@@ -929,16 +957,26 @@ function getSyncLog(PDO $pdo, $formId = null): array
 
 function testRaynetConnection(): array
 {
+    $userId = $_SESSION['user_id'] ?? null;
+    if (!$userId) {
+        return [
+            'success' => false,
+            'connected' => false,
+            'message' => 'Není přihlášen žádný uživatel'
+        ];
+    }
+    
     try {
-        $connector = RaynetConnector::create();
-        
-        if (!$connector->isConfigured()) {
+        $pdo = getDbConnection();
+        if (!RaynetConnector::isUserConfigured($userId, $pdo)) {
             return [
                 'success' => false,
                 'connected' => false,
-                'message' => 'Raynet není nakonfigurován. Aktualizujte config/raynet.php'
+                'message' => 'Nemáte nastavené Raynet API přihlašovací údaje. Nastavte je v sekci Raynet API.'
             ];
         }
+        
+        $connector = RaynetConnector::createForUser($userId, $pdo);
         
         // Try a simple search
         $company = $connector->company();
@@ -1088,15 +1126,18 @@ function clearOldRaynetLogs(PDO $pdo, int $daysOld): array
 
 function getCompanyJson($companyId): array
 {
+    $userId = $_SESSION['user_id'] ?? null;
+    if (!$userId) {
+        return ['success' => false, 'error' => 'Není přihlášen žádný uživatel'];
+    }
+    
     try {
-        $connector = RaynetConnector::create();
-        
-        if (!$connector->isConfigured()) {
-            return [
-                'success' => false,
-                'error' => 'Raynet není nakonfigurován'
-            ];
+        $pdo = getDbConnection();
+        if (!RaynetConnector::isUserConfigured($userId, $pdo)) {
+            return ['success' => false, 'error' => 'Nemáte nastavené Raynet API přihlašovací údaje'];
         }
+        
+        $connector = RaynetConnector::createForUser($userId, $pdo);
         
         // Fetch company by ID
         $company = $connector->company()->findById($companyId);
@@ -1186,8 +1227,12 @@ function getFieldComparison(PDO $pdo, $formId): array
     $companyRaynetId = $form['raynet_company_id'] ? (int) $form['raynet_company_id'] : null;
 
     // ── 2. Replicate the exact custom fields build pipeline ──────────────────
+    $userId = $_SESSION['user_id'] ?? null;
+    if (!$userId || !RaynetConnector::isUserConfigured($userId, $pdo)) {
+        return ['success' => false, 'error' => 'Nemáte nastavené Raynet API přihlašovací údaje'];
+    }
     try {
-        $connector = RaynetConnector::create($pdo);
+        $connector = RaynetConnector::createForUser($userId, $pdo);
     } catch (Exception $e) {
         return ['success' => false, 'error' => 'Raynet není dostupný: ' . $e->getMessage()];
     }

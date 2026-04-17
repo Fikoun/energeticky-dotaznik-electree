@@ -12,26 +12,36 @@ use Raynet\RaynetConnector;
 use Raynet\RaynetException;
 
 /**
- * Sync a form to Raynet CRM
+ * Sync a form to Raynet CRM using the specified user's credentials.
  * 
  * Call this after a form is submitted (status = 'submitted').
- * Safe to call - will silently fail if Raynet is not configured.
+ * Safe to call - will silently fail if user has no Raynet credentials.
  * 
  * @param array $formData The form data
  * @param string|int $formId The form ID (can be UUID string or int)
  * @param PDO|null $pdo Optional PDO connection for status tracking
+ * @param string|null $userId User ID whose Raynet credentials to use
  * @return array|null Sync result or null if not configured
  */
-function syncFormToRaynet(array $formData, string|int $formId, ?\PDO $pdo = null): ?array
+function syncFormToRaynet(array $formData, string|int $formId, ?\PDO $pdo = null, ?string $userId = null): ?array
 {
     try {
-        $connector = RaynetConnector::create($pdo);
+        if (!$pdo) {
+            require_once __DIR__ . '/../config/database.php';
+            $pdo = getDbConnection();
+        }
         
-        // Skip if not configured
-        if (!$connector->isConfigured()) {
-            error_log("Raynet sync skipped: connector not configured");
+        // Determine user: explicit param > form owner > session user
+        if (!$userId) {
+            $userId = $formData['user_id'] ?? $_SESSION['user_id'] ?? null;
+        }
+        
+        if (!$userId || !RaynetConnector::isUserConfigured($userId, $pdo)) {
+            error_log("Raynet sync skipped: user has no Raynet credentials configured");
             return null;
         }
+        
+        $connector = RaynetConnector::createForUser($userId, $pdo);
         
         return $connector->syncForm($formData, $formId);
         
@@ -51,13 +61,21 @@ function syncFormToRaynet(array $formData, string|int $formId, ?\PDO $pdo = null
 }
 
 /**
- * Check if Raynet connector is configured
+ * Check if the given user has Raynet credentials configured
  */
-function isRaynetConfigured(): bool
+function isRaynetConfigured(?string $userId = null): bool
 {
     try {
-        $connector = RaynetConnector::create();
-        return $connector->isConfigured();
+        require_once __DIR__ . '/../config/database.php';
+        $pdo = getDbConnection();
+        
+        if (!$userId) {
+            $userId = $_SESSION['user_id'] ?? null;
+        }
+        if (!$userId) {
+            return false;
+        }
+        return RaynetConnector::isUserConfigured($userId, $pdo);
     } catch (\Exception $e) {
         return false;
     }
@@ -101,12 +119,15 @@ function queueFormForRaynetSync(int $formId, \PDO $pdo): bool
 function checkAndSyncFormToRaynet(array $formData, string|int $formId, \PDO $pdo): array
 {
     try {
-        $connector = RaynetConnector::create($pdo);
-
-        if (!$connector->isConfigured()) {
-            error_log("Raynet checkAndSync skipped: connector not configured");
-            return ['status' => 'error', 'error' => 'Raynet connector is not configured'];
+        // Determine which user's credentials to use
+        $userId = $formData['user_id'] ?? $_SESSION['user_id'] ?? null;
+        
+        if (!$userId || !RaynetConnector::isUserConfigured($userId, $pdo)) {
+            error_log("Raynet checkAndSync skipped: user has no Raynet credentials configured");
+            return ['status' => 'error', 'error' => 'Uživatel nemá nastavené Raynet API přihlašovací údaje'];
         }
+        
+        $connector = RaynetConnector::createForUser($userId, $pdo);
 
         // --- Pre-flight duplicate check ---
         $checker = new \Raynet\RaynetDuplicateChecker($connector->getClient());

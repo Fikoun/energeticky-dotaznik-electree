@@ -2,7 +2,7 @@
 /**
  * Shared admin navigation bar.
  * Set $activePage before requiring this file.
- * Possible values: 'forms', 'sync', 'settings'
+ * Possible values: 'forms', 'sync', 'settings', 'raynet'
  */
 $_navPage = $activePage ?? '';
 
@@ -30,6 +30,9 @@ function _navLinkClass(string $page, string $current): string {
                         </a>
                         <a href="admin-settings.php" class="<?= _navLinkClass('settings', $_navPage) ?>">
                             ⚙️ Nastavení
+                        </a>
+                        <a href="user-raynet-settings.php" class="<?= _navLinkClass('raynet', $_navPage) ?>">
+                            🔗 Raynet API
                         </a>
                     </div>
                 </div>
