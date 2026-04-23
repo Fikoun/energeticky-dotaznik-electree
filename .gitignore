@@ -16,3 +16,5 @@ coverage/
 build/
 .cache/quokka/
 public/uploads/ 
+/log/php-error.log
+db-inspect.php

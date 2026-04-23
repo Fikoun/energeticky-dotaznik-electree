@@ -171,7 +171,7 @@ function validateUserData($data, $isUpdate = false) {
     // Role validation
     if (!$isUpdate || isset($data['role'])) {
         $role = $data['role'] ?? '';
-        $validRoles = ['admin', 'salesman', 'partner', 'customer'];
+        $validRoles = ['admin', 'partner', 'salesperson', 'user'];
         if (empty($role)) {
             $errors[] = 'Role je povinná';
         } elseif (!in_array($role, $validRoles)) {
@@ -597,6 +597,7 @@ try {
             
             // Příprava sanitizovaných dat pro vložení
             $insertFields = [
+                'id' => bin2hex(random_bytes(16)),
                 'name' => sanitizeInput($data['name']),
                 'email' => sanitizeInput($data['email'], 'email'),
                 'role' => sanitizeInput($data['role']),
@@ -613,7 +614,7 @@ try {
             
             // Hash hesla pokud je zadáno
             if (!empty($data['password'])) {
-                $insertFields['password'] = password_hash($data['password'], PASSWORD_DEFAULT);
+                $insertFields['password_hash'] = password_hash($data['password'], PASSWORD_DEFAULT);
             }
             
             // Sestavení SQL dotazu
@@ -684,7 +685,7 @@ try {
             $allowedFields = [
                 'name' => ['required' => true, 'max_length' => 100],
                 'email' => ['required' => true, 'max_length' => 255, 'validate' => 'email'],
-                'role' => ['required' => true, 'allowed_values' => ['admin', 'salesman', 'partner', 'customer']],
+                'role' => ['required' => true, 'allowed_values' => ['admin', 'partner', 'salesperson', 'user']],
                 'phone' => ['required' => false, 'max_length' => 20],
                 'company_name' => ['required' => false, 'max_length' => 255],
                 'address' => ['required' => false, 'max_length' => 500],
