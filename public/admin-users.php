@@ -79,9 +79,9 @@ header('Content-Type: text/html; charset=utf-8');
                         <select id="role-filter" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                             <option value="">Všechny role</option>
                             <option value="admin">Administrátor</option>
-                            <option value="salesman">Obchodník</option>
+                            <option value="salesperson">Obchodník</option>
                             <option value="partner">Partner</option>
-                            <option value="customer">Zákazník</option>
+                            <option value="user">Zákazník</option>
                         </select>
                     </div>
                     <div>
@@ -202,8 +202,8 @@ header('Content-Type: text/html; charset=utf-8');
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Role *</label>
                                 <select id="userRole" name="role" required
                                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
-                                    <option value="customer">Zákazník</option>
-                                    <option value="salesman">Obchodník</option>
+                                    <option value="user">Zákazník</option>
+                                    <option value="salesperson">Obchodník</option>
                                     <option value="partner">Partner</option>
                                     <option value="admin">Administrátor</option>
                                 </select>
@@ -359,8 +359,8 @@ header('Content-Type: text/html; charset=utf-8');
                     log.warn('API failed, using fallback roles. Response:', data);
                     // Fallback to default roles if database fails
                     availableRoles = [
-                        { role_key: 'customer', role_name: 'Zákazník' },
-                        { role_key: 'salesman', role_name: 'Obchodník' },
+                        { role_key: 'user', role_name: 'Zákazník' },
+                        { role_key: 'salesperson', role_name: 'Obchodník' },
                         { role_key: 'partner', role_name: 'Partner' },
                         { role_key: 'admin', role_name: 'Administrátor' }
                     ];
@@ -371,8 +371,8 @@ header('Content-Type: text/html; charset=utf-8');
                 log.error('Failed to load roles, using fallback', error);
                 // Fallback to default roles
                 availableRoles = [
-                    { role_key: 'customer', role_name: 'Zákazník' },
-                    { role_key: 'salesman', role_name: 'Obchodník' },
+                    { role_key: 'user', role_name: 'Zákazník' },
+                    { role_key: 'salesperson', role_name: 'Obchodník' },
                     { role_key: 'partner', role_name: 'Partner' },
                     { role_key: 'admin', role_name: 'Administrátor' }
                 ];
@@ -666,9 +666,9 @@ header('Content-Type: text/html; charset=utf-8');
         function getRoleClass(role) {
             switch(role) {
                 case 'admin': return 'bg-red-100 text-red-800';
-                case 'salesman': return 'bg-blue-100 text-blue-800';
+                case 'salesperson': return 'bg-blue-100 text-blue-800';
                 case 'partner': return 'bg-purple-100 text-purple-800';
-                case 'customer': return 'bg-green-100 text-green-800';
+                case 'user': return 'bg-green-100 text-green-800';
                 default: return 'bg-gray-100 text-gray-800';
             }
         }
@@ -683,9 +683,9 @@ header('Content-Type: text/html; charset=utf-8');
             // Fallback na statické mapování
             switch(role) {
                 case 'admin': return 'Administrátor';
-                case 'salesman': return 'Obchodník';
+                case 'salesperson': return 'Obchodník';
                 case 'partner': return 'Partner';
-                case 'customer': return 'Zákazník';
+                case 'user': return 'Zákazník';
                 default: return role || 'Neznámý';
             }
         }
@@ -1124,9 +1124,10 @@ header('Content-Type: text/html; charset=utf-8');
             
             // Mapování starších rolí na nové
             const roleMapping = {
-                'user': 'customer',
-                'client': 'customer', 
-                'employee': 'salesman',
+                'customer': 'user',
+                'client': 'user',
+                'employee': 'salesperson',
+                'salesman': 'salesperson',
                 'manager': 'admin'
             };
             
@@ -1149,7 +1150,7 @@ header('Content-Type: text/html; charset=utf-8');
                 }
             } else {
                 // Fallback pokud nejsou role načtené
-                validRoles = ['customer', 'salesman', 'partner', 'admin'];
+                validRoles = ['user', 'salesperson', 'partner', 'admin'];
                 console.warn('No roles loaded, using fallback valid roles');
             }
             
@@ -1164,11 +1165,11 @@ header('Content-Type: text/html; charset=utf-8');
                 if (name.includes('admin')) {
                     userRole = 'admin';
                 } else if (name.includes('sales') || name.includes('obchodnik') || name.includes('consultant')) {
-                    userRole = 'salesman';
+                    userRole = 'salesperson';
                 } else if (name.includes('partner')) {
                     userRole = 'partner';
                 } else {
-                    userRole = 'customer';
+                    userRole = 'user';
                 }
                 console.log('Empty role detected, guessing:', userRole, 'based on name:', user.name);
             }
@@ -1180,9 +1181,9 @@ header('Content-Type: text/html; charset=utf-8');
                 console.log('Role mapped from', oldRole, 'to', userRole);
             }
             
-            // Fallback na customer pokud role stále není validní
+            // Fallback na user pokud role stále není validní
             if (!validRoles.includes(userRole)) {
-                userRole = validRoles.includes('customer') ? 'customer' : validRoles[0] || 'customer';
+                userRole = validRoles.includes('user') ? 'user' : validRoles[0] || 'user';
                 console.log('Invalid role, falling back to:', userRole);
             }
             
@@ -1229,7 +1230,7 @@ header('Content-Type: text/html; charset=utf-8');
             // Zajištění platné role
             const validRoles = availableRoles.map(r => r.role_key);
             if (!validRoles.includes(userData.role)) {
-                userData.role = validRoles.includes('customer') ? 'customer' : validRoles[0] || 'customer';
+                userData.role = validRoles.includes('user') ? 'user' : validRoles[0] || 'user';
             }
             
             // Debug log pro kontrolu odesílaných dat
