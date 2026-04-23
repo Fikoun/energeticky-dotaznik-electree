@@ -837,8 +837,8 @@ if (!$user_data) {
 function getRoleBadgeClass($role) {
     switch($role) {
         case 'admin': return 'bg-purple-100 text-purple-800';
-        case 'salesman': return 'bg-blue-100 text-blue-800';
-        case 'customer': return 'bg-green-100 text-green-800';
+        case 'salesperson': return 'bg-blue-100 text-blue-800';
+        case 'user': return 'bg-green-100 text-green-800';
         default: return 'bg-gray-100 text-gray-800';
     }
 }
@@ -846,8 +846,9 @@ function getRoleBadgeClass($role) {
 function getRoleLabel($role) {
     switch($role) {
         case 'admin': return 'Administrátor';
-        case 'salesman': return 'Obchodník';
-        case 'customer': return 'Zákazník';
+        case 'salesperson': return 'Obchodník';
+        case 'partner': return 'Partner';
+        case 'user': return 'Zákazník';
         default: return $role;
     }
 }

@@ -1417,7 +1417,7 @@ try {
                 'id' => $userId,
                 'name' => 'Testovací uživatel',
                 'email' => 'test@example.com',
-                'role' => 'customer',
+                'role' => 'user',
                 'is_active' => 1,
                 'last_login' => '2025-09-02 10:00:00',
                 'created_at' => '2025-08-01 09:00:00',

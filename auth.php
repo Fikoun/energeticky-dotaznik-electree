@@ -111,15 +111,15 @@ try {
             if (function_exists('getDbConnection')) {
                 try {
                     $pdo = getDbConnection();
-                    $stmt = $pdo->prepare("SELECT id, name, email, role, password FROM users WHERE email = ? OR name = ? LIMIT 1");
+                    $stmt = $pdo->prepare("SELECT id, name, email, role, password_hash FROM users WHERE email = ? OR name = ? LIMIT 1");
                     $stmt->execute([$username, $username]);
                     $dbUser = $stmt->fetch(PDO::FETCH_ASSOC);
                     
                     if ($dbUser) {
-                        // Check password - support both hashed and legacy plain check
+                        // Check password against password_hash column
                         $passwordValid = false;
-                        if (!empty($dbUser['password'])) {
-                            $passwordValid = password_verify($password, $dbUser['password']);
+                        if (!empty($dbUser['password_hash'])) {
+                            $passwordValid = password_verify($password, $dbUser['password_hash']);
                         }
                         // Hardcoded admin fallback check
                         if (!$passwordValid && $dbUser['role'] === 'admin' && $username === 'admin' && $password === 'admin123') {
