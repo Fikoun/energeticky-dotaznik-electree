@@ -455,6 +455,7 @@ function getLocalForms(PDO $pdo, int $page, int $perPage, string $filter): array
             f.status,
             f.raynet_company_id,
             f.raynet_person_id,
+            f.raynet_lead_id,
             f.raynet_synced_at,
             f.raynet_sync_error,
             f.raynet_sync_status,
@@ -803,8 +804,13 @@ function syncSingleForm(PDO $pdo, $formId, ?int $targetCompanyId = null): array
         if ($result['success']) {
             $logger->info(Logger::TYPE_RAYNET, "Successfully synced form #{$formId}", [
                 'company_id' => $result['company_id'] ?? null,
-                'person_id' => $result['person_id'] ?? null
+                'person_id' => $result['person_id'] ?? null,
+                'lead_id' => $result['lead_id'] ?? null,
+                'lead_sync_warning' => $result['lead_sync_warning'] ?? null,
             ]);
+            if (!empty($result['lead_sync_warning'])) {
+                $logger->error(Logger::TYPE_RAYNET, "Lead creation failed for form #{$formId} (company was synced): " . $result['lead_sync_warning']);
+            }
         } else {
             $logger->error(Logger::TYPE_RAYNET, "Failed to sync form #{$formId}: " . ($result['error'] ?? 'Unknown error'), [
                 'result' => $result

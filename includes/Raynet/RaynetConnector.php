@@ -13,6 +13,7 @@ require_once __DIR__ . '/RaynetApiClient.php';
 require_once __DIR__ . '/RaynetEntity.php';
 require_once __DIR__ . '/RaynetCompany.php';
 require_once __DIR__ . '/RaynetPerson.php';
+require_once __DIR__ . '/RaynetLead.php';
 require_once __DIR__ . '/RaynetCustomFields.php';
 
 class RaynetConnector
@@ -98,6 +99,14 @@ class RaynetConnector
     {
         return new RaynetPerson($this->client);
     }
+
+    /**
+     * Get Lead entity instance
+     */
+    public function lead(): RaynetLead
+    {
+        return new RaynetLead($this->client);
+    }
     
     /**
      * Check if connector is configured
@@ -172,6 +181,8 @@ class RaynetConnector
             'form_id' => $formId,
             'company_id' => null,
             'person_id' => null,
+            'lead_id' => null,
+            'lead_sync_warning' => null,
             'synced_at' => null,
             'error' => null,
             'custom_fields_synced' => 0
@@ -222,7 +233,20 @@ class RaynetConnector
             $result['company_id'] = $company->getId();
             
             error_log("Raynet sync: Company synced with ID {$result['company_id']}");
-            
+
+            // 2. Sync lead – always create a new lead; duplicate = notify admin only
+            try {
+                $leadId = $this->syncLead($parsedFormData, $formId, $result['company_id']);
+                $result['lead_id'] = $leadId;
+                error_log("Raynet sync: Lead created with ID {$leadId}");
+            } catch (\Exception $e) {
+                // Lead sync failure is non-fatal – company is still marked synced,
+                // but the warning is persisted to DB and returned to the caller.
+                $warning = 'LEAD_WARNING: ' . $e->getMessage();
+                $result['lead_sync_warning'] = $warning;
+                error_log("Raynet sync: Failed to create lead for form {$formId}: " . $e->getMessage());
+            }
+
             // TODO: Person sync is disabled to prevent duplicate person objects being created in Raynet.
             // Each sync was re-adding the contact person to the company's relation list, causing duplicates.
             // Re-enable and fix deduplication logic before re-implementing person sync.
@@ -378,24 +402,106 @@ class RaynetConnector
     {
         try {
             $stmt = $this->pdo->prepare("
-                UPDATE forms SET 
+                UPDATE forms SET
                     raynet_company_id = ?,
                     raynet_person_id = ?,
+                    raynet_lead_id = ?,
                     raynet_synced_at = ?,
-                    raynet_sync_error = NULL,
+                    raynet_sync_error = ?,
                     raynet_sync_status = 'synced'
                 WHERE id = ?
             ");
-            
+
             $stmt->execute([
                 $result['company_id'],
                 $result['person_id'],
+                $result['lead_id'],
                 $result['synced_at'],
-                $formId
+                $this->leadWarningForDb($result), // null = no warning; clears error on clean sync
+                $formId,
             ]);
         } catch (\PDOException $e) {
             error_log("Failed to update sync status for form {$formId}: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Determine the value to store in raynet_sync_error after a successful company sync.
+     * Returns a LEAD_WARNING string when lead creation failed, null otherwise.
+     */
+    private function leadWarningForDb(array $result): ?string
+    {
+        return $result['lead_sync_warning'] ?? null;
+    }
+
+    /**
+     * Create a new lead for the given form in Raynet.
+     *
+     * Always creates a fresh lead record. If a matching lead already exists
+     * (by IČO or e-mail), an admin notification is sent but creation proceeds.
+     *
+     * @param array      $parsedFormData  Form data (already parsed/merged)
+     * @param string|int $formId          EnergyForms form ID
+     * @param int|null   $raynetCompanyId Raynet company ID from the company sync step
+     * @return int  The newly created Raynet lead ID
+     */
+    private function syncLead(array $parsedFormData, string|int $formId, ?int $raynetCompanyId): int
+    {
+        $checker = new RaynetDuplicateChecker($this->client);
+
+        // Check for existing leads (informational – does NOT block creation)
+        $existing = $checker->findExistingLead([
+            'ico'   => $parsedFormData['ico']   ?? null,
+            'email' => $parsedFormData['email'] ?? null,
+        ]);
+
+        if ($existing) {
+            error_log(
+                "Raynet syncLead: duplicate lead found for form {$formId}"
+                . " – matched by '{$existing['matched_by']}', existing Raynet lead ID {$existing['id']}."
+                . " Creating new lead anyway and notifying admin."
+            );
+            $this->sendDuplicateLeadNotification($formId, $parsedFormData, $existing);
+        }
+
+        // Always create a new lead
+        $lead = $this->lead();
+        $lead->fromFormData($parsedFormData, $formId, $raynetCompanyId);
+        $lead->create();
+
+        return $lead->getId();
+    }
+
+    /**
+     * Send admin notification when a duplicate lead is detected.
+     * Reads the notify e-mail from the settings table (falls back to a default).
+     */
+    private function sendDuplicateLeadNotification(
+        string|int $formId,
+        array $formData,
+        array $existing
+    ): void {
+        $notifyEmail = 'info@electree.cz';
+
+        if ($this->pdo) {
+            try {
+                $tableCheck = $this->pdo->query("SHOW TABLES LIKE 'settings'");
+                if ($tableCheck && $tableCheck->rowCount() > 0) {
+                    $stmt = $this->pdo->prepare(
+                        "SELECT `value` FROM settings WHERE `key` = 'raynet_duplicate_notify_email'"
+                    );
+                    $stmt->execute();
+                    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                    if ($row && !empty($row['value'])) {
+                        $notifyEmail = $row['value'];
+                    }
+                }
+            } catch (\Exception $e) {
+                error_log("sendDuplicateLeadNotification: could not read settings – " . $e->getMessage());
+            }
+        }
+
+        sendDuplicateLeadNotificationEmail($notifyEmail, $formId, $formData, $existing);
     }
     
     /**

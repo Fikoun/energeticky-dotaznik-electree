@@ -190,6 +190,7 @@ function checkAndSyncFormToRaynet(array $formData, string|int $formId, \PDO $pdo
                         'status'     => 'synced',
                         'company_id' => $result['company_id'],
                         'person_id'  => $result['person_id'],
+                        'lead_id'    => $result['lead_id'],
                     ];
                 }
 
@@ -240,6 +241,7 @@ function checkAndSyncFormToRaynet(array $formData, string|int $formId, \PDO $pdo
                 'status'     => 'synced',
                 'company_id' => $result['company_id'],
                 'person_id'  => $result['person_id'],
+                'lead_id'    => $result['lead_id'],
             ];
         }
 
@@ -285,6 +287,62 @@ function checkAndSyncFormToRaynet(array $formData, string|int $formId, \PDO $pdo
         }
 
         return ['status' => 'error', 'error' => 'Unexpected error'];
+    }
+}
+
+/**
+ * Send notification email to admin about a duplicate lead detected during sync.
+ *
+ * Unlike company duplicates, lead duplicates do NOT block creation – the new
+ * lead is always created. This email is purely informational.
+ */
+function sendDuplicateLeadNotificationEmail(string $email, string|int $formId, array $formData, array $existing): void
+{
+    $syncUrl     = 'https://ed.electree.cz/admin-sync.php';
+    $companyName = $formData['companyName'] ?? 'Neznámý zákazník';
+    $ico         = $formData['ico'] ?? 'N/A';
+    $matchedBy   = $existing['matched_by'] ?? '?';
+    $raynetId    = $existing['id'] ?? '?';
+
+    $subject = "Raynet sync – duplicitní lead pro formulář #{$formId}";
+    $body = "
+        <h2>Nalezen duplicitní lead při synchronizaci</h2>
+        <p>Při synchronizaci formuláře <strong>#{$formId}</strong> do Raynet CRM byl nalezen existující lead pro stejnou firmu/kontakt.
+           <strong>Nový lead byl přesto vytvořen.</strong></p>
+
+        <h3>Formulář:</h3>
+        <ul>
+            <li><strong>ID:</strong> " . htmlspecialchars((string) $formId) . "</li>
+            <li><strong>Firma:</strong> " . htmlspecialchars($companyName) . "</li>
+            <li><strong>IČO:</strong> " . htmlspecialchars($ico) . "</li>
+        </ul>
+
+        <h3>Existující lead v Raynet:</h3>
+        <ul>
+            <li><strong>Raynet ID:</strong> " . htmlspecialchars((string) $raynetId) . "</li>
+            <li><strong>Shoda:</strong> " . htmlspecialchars($matchedBy) . "</li>
+        </ul>
+
+        <p>Doporučujeme zkontrolovat oba leady a případně je sloučit (merge) v Raynet.</p>
+        <p style='margin: 20px 0;'>
+            <a href='" . htmlspecialchars($syncUrl) . "' style='background-color: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;'>
+                Otevřít správu synchronizace
+            </a>
+        </p>
+    ";
+
+    $headers = [
+        'MIME-Version: 1.0',
+        'Content-type: text/html; charset=utf-8',
+        'From: noreply@electree.cz',
+        'Reply-To: info@electree.cz',
+    ];
+
+    $sent = mail($email, $subject, $body, implode("\r\n", $headers));
+    if (!$sent) {
+        error_log("Failed to send duplicate lead notification email to {$email} for form {$formId}");
+    } else {
+        error_log("Duplicate lead notification email sent to {$email} for form {$formId}");
     }
 }
 

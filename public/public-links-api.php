@@ -11,6 +11,17 @@
  *   revoke   – Revoke (deactivate) a link
  *   detail   – Get link details
  */
+
+// Session must start before ANY output (including ob_start)
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'path'     => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    session_start();
+}
+
 ob_start();
 
 require_once __DIR__ . '/../config/database.php';
@@ -25,8 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     ob_end_clean();
     exit(0);
 }
-
-session_start();
 
 try {
     $pdo = getDbConnection();

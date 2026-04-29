@@ -1,4 +1,6 @@
-import { User, FileText, LogOut, Save, Clock, AlertCircle, Shield, Settings, Plus, FlaskConical } from 'lucide-react'
+import { useState } from 'react'
+import { User, FileText, LogOut, Save, Clock, AlertCircle, Shield, Settings, Plus, FlaskConical, Link2 } from 'lucide-react'
+import CreateLinkModal from './CreateLinkModal'
 
 const TopBar = ({ 
   user, 
@@ -9,6 +11,7 @@ const TopBar = ({
   onNewForm,
   onPrefillTestData 
 }) => {
+  const [showCreateLink, setShowCreateLink] = useState(false)
   const { isSaving, lastSaved, saveError } = autoSaveStatus || {}
 
   const getRoleBadge = (role) => {
@@ -36,117 +39,133 @@ const TopBar = ({
   }
 
   return (
-    <div className="bg-white border-b border-gray-200 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo/Brand */}
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <h1 className="text-xl font-bold text-gray-900">Electree</h1>
-            </div>
-          </div>
-
-          {/* User info and navigation */}
-          <div className="flex items-center space-x-4">
-            {/* Auto-save status */}
-            {user && currentView === 'form' && (
-              <div className="hidden sm:flex items-center space-x-2 text-sm">
-                {saveError ? (
-                  <div className="flex items-center text-red-600" title={saveError}>
-                    <AlertCircle className="h-4 w-4 mr-1" />
-                    <span>Chyba ukládání</span>
-                  </div>
-                ) : isSaving ? (
-                  <div className="flex items-center text-blue-600">
-                    <Save className="h-4 w-4 mr-1 animate-pulse" />
-                    <span>Ukládám...</span>
-                  </div>
-                ) : lastSaved ? (
-                  <div className="flex items-center text-green-600">
-                    <Clock className="h-4 w-4 mr-1" />
-                    <span>Uloženo {lastSaved.toLocaleTimeString('cs-CZ', { 
-                      hour: '2-digit', 
-                      minute: '2-digit' 
-                    })}</span>
-                  </div>
-                ) : null}
+    <>
+      <div className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            {/* Logo/Brand */}
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <h1 className="text-xl font-bold text-gray-900">Electree</h1>
               </div>
-            )}
+            </div>
 
-            {/* User info */}
-            <div className="flex items-center space-x-3 text-sm text-gray-700">
-              <User className="h-4 w-4" />
-              <div className="flex flex-col items-end">
-                <span className="font-medium">{user?.fullName || user?.name}</span>
-                <div className="flex items-center space-x-2">
-                  {user?.role && getRoleBadge(user.role)}
-                  {user?.email && (
-                    <span className="text-xs text-gray-500">{user.email}</span>
-                  )}
+            {/* User info and navigation */}
+            <div className="flex items-center space-x-4">
+              {/* Auto-save status */}
+              {user && currentView === 'form' && (
+                <div className="hidden sm:flex items-center space-x-2 text-sm">
+                  {saveError ? (
+                    <div className="flex items-center text-red-600" title={saveError}>
+                      <AlertCircle className="h-4 w-4 mr-1" />
+                      <span>Chyba ukládání</span>
+                    </div>
+                  ) : isSaving ? (
+                    <div className="flex items-center text-blue-600">
+                      <Save className="h-4 w-4 mr-1 animate-pulse" />
+                      <span>Ukládám...</span>
+                    </div>
+                  ) : lastSaved ? (
+                    <div className="flex items-center text-green-600">
+                      <Clock className="h-4 w-4 mr-1" />
+                      <span>Uloženo {lastSaved.toLocaleTimeString('cs-CZ', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}</span>
+                    </div>
+                  ) : null}
                 </div>
-              </div>
-            </div>
-
-            {/* Navigation */}
-            <div className="flex items-center space-x-1">
-              {/* Nový formulář */}
-              <button
-                onClick={onNewForm}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md transition-colors"
-                title="Vytvořit nový formulář"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Nový formulář</span>
-              </button>
-
-              {/* Admin Panel Button */}
-              {user && user.role === 'admin' && (
-                <>
-                  <button
-                    onClick={onPrefillTestData}
-                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors"
-                    title="Předvyplnit testovací data"
-                  >
-                    <FlaskConical className="h-4 w-4 mr-2" />
-                    <span className="hidden sm:inline">Test data</span>
-                  </button>
-                  <button
-                    onClick={handleAdminPanel}
-                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
-                    title="Admin Panel"
-                  >
-                    <Shield className="h-4 w-4 mr-2" />
-                    <span className="hidden sm:inline">Admin</span>
-                  </button>
-                </>
               )}
 
-              <button
-                onClick={() => onViewChange(currentView === 'history' ? 'form' : 'history')}
-                className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                  currentView === 'history' 
-                    ? 'bg-primary-100 text-primary-700 hover:bg-primary-200' 
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                }`}
-                title={currentView === 'history' ? 'Zpět na formulář' : 'Zobrazit moje formuláře'}
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                {currentView === 'history' ? 'Formulář' : 'Historie'}
-              </button>
+              {/* User info */}
+              <div className="flex items-center space-x-3 text-sm text-gray-700">
+                <User className="h-4 w-4" />
+                <div className="flex flex-col items-end">
+                  <span className="font-medium">{user?.fullName || user?.name}</span>
+                  <div className="flex items-center space-x-2">
+                    {user?.role && getRoleBadge(user.role)}
+                    {user?.email && (
+                      <span className="text-xs text-gray-500">{user.email}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
 
-              <button
-                onClick={onLogout}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                title="Odhlásit se"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Odhlásit
-              </button>
+              {/* Navigation */}
+              <div className="flex items-center space-x-1">
+                {/* Nový formulář */}
+                <button
+                  onClick={onNewForm}
+                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md transition-colors"
+                  title="Vytvořit nový formulář"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">Nový formulář</span>
+                </button>
+
+                {/* Sdílet formulář – generate a public link */}
+                <button
+                  onClick={() => setShowCreateLink(true)}
+                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors border border-emerald-200"
+                  title="Vygenerovat odkaz pro zákazníka"
+                >
+                  <Link2 className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">Sdílet</span>
+                </button>
+
+                {/* Admin Panel Button */}
+                {user && user.role === 'admin' && (
+                  <>
+                    <button
+                      onClick={onPrefillTestData}
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors"
+                      title="Předvyplnit testovací data"
+                    >
+                      <FlaskConical className="h-4 w-4 mr-2" />
+                      <span className="hidden sm:inline">Test data</span>
+                    </button>
+                    <button
+                      onClick={handleAdminPanel}
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+                      title="Admin Panel"
+                    >
+                      <Shield className="h-4 w-4 mr-2" />
+                      <span className="hidden sm:inline">Admin</span>
+                    </button>
+                  </>
+                )}
+
+                <button
+                  onClick={() => onViewChange(currentView === 'history' ? 'form' : 'history')}
+                  className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentView === 'history' 
+                      ? 'bg-primary-100 text-primary-700 hover:bg-primary-200' 
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  }`}
+                  title={currentView === 'history' ? 'Zpět na formulář' : 'Zobrazit moje formuláře'}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  {currentView === 'history' ? 'Formulář' : 'Historie'}
+                </button>
+
+                <button
+                  onClick={onLogout}
+                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                  title="Odhlásit se"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Odhlásit
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {showCreateLink && (
+        <CreateLinkModal onClose={() => setShowCreateLink(false)} />
+      )}
+    </>
   )
 }
 

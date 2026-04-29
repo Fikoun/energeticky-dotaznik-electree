@@ -20,6 +20,13 @@
  *   'ico'       – exact match on regNumber (IČO)
  *   'taxNumber' – exact match on taxNumber (DIČ)
  *   'name'      – LIKE match on company name
+ *
+ * LEAD strategies (in priority order):
+ *   'ico'   – exact match on regNumber (IČO)
+ *   'email' – exact match on contactInfo.email
+ *
+ * Note: For leads a duplicate match does NOT block creation — a new lead is
+ * always created. A match only triggers an admin notification.
  */
 
 namespace Raynet;
@@ -48,6 +55,16 @@ class RaynetDuplicateChecker
         'ico'       => true,
         'taxNumber' => false,
         'name'      => false,
+    ];
+
+    /**
+     * Lead duplicate strategies.
+     * Key → enabled flag. Order defines evaluation priority.
+     * A match here does NOT block lead creation – it only triggers notification.
+     */
+    private array $leadStrategies = [
+        'ico'   => true,
+        'email' => true,
     ];
 
     public function __construct(RaynetApiClient $client)
@@ -118,6 +135,34 @@ class RaynetDuplicateChecker
     }
 
     /**
+     * Enable or disable a single lead duplicate strategy.
+     *
+     * @param string $strategy  One of: ico, email
+     * @param bool   $enabled
+     */
+    public function setLeadStrategy(string $strategy, bool $enabled): self
+    {
+        if (!array_key_exists($strategy, $this->leadStrategies)) {
+            throw new \InvalidArgumentException(
+                "Unknown lead strategy '{$strategy}'. Valid: " . implode(', ', array_keys($this->leadStrategies))
+            );
+        }
+        $this->leadStrategies[$strategy] = $enabled;
+        return $this;
+    }
+
+    /**
+     * Bulk configure lead strategies.
+     */
+    public function configureLeadStrategies(array $map): self
+    {
+        foreach ($map as $strategy => $enabled) {
+            $this->setLeadStrategy($strategy, (bool) $enabled);
+        }
+        return $this;
+    }
+
+    /**
      * Return current person strategy configuration.
      */
     public function getPersonStrategies(): array
@@ -131,6 +176,14 @@ class RaynetDuplicateChecker
     public function getCompanyStrategies(): array
     {
         return $this->companyStrategies;
+    }
+
+    /**
+     * Return current lead strategy configuration.
+     */
+    public function getLeadStrategies(): array
+    {
+        return $this->leadStrategies;
     }
 
     // -------------------------------------------------------------------------
@@ -280,6 +333,49 @@ class RaynetDuplicateChecker
                 }
                 // Fall back to best LIKE match
                 return $this->buildResult($matches[0], 'name_like');
+            }
+        }
+
+        return null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Lead duplicate lookup
+    // -------------------------------------------------------------------------
+
+    /**
+     * Look for an existing Lead in Raynet using the enabled strategies.
+     *
+     * Unlike company/person checks, a match here does NOT block creation.
+     * The caller should always create the lead and notify the admin when a
+     * match is returned.
+     *
+     * Result shape:
+     * [
+     *   'id'         => int,
+     *   'matched_by' => string,   // 'ico' | 'email'
+     *   'data'       => array,    // raw Raynet entity data
+     * ]
+     *
+     * @param array $data  Normalised lead data: ico, email
+     */
+    public function findExistingLead(array $data): ?array
+    {
+        $leadEntity = new RaynetLead($this->client);
+
+        // Strategy: ico (regNumber)
+        if ($this->leadStrategies['ico'] && !empty($data['ico'])) {
+            $found = $this->safeCallFind(fn() => $leadEntity->findByIco($data['ico']));
+            if ($found) {
+                return $this->buildResult($found, 'ico');
+            }
+        }
+
+        // Strategy: email
+        if ($this->leadStrategies['email'] && !empty($data['email'])) {
+            $found = $this->safeCallFind(fn() => $leadEntity->findByEmail($data['email']));
+            if ($found) {
+                return $this->buildResult($found, 'email');
             }
         }
 

@@ -110,7 +110,7 @@ class RaynetApiClient
     /**
      * PUT request (create)
      */
-    public function put(string $endpoint, array $data): array
+    public function put(string $endpoint, array $data): ?array
     {
         $url = self::BASE_URL . $endpoint;
         return $this->request('PUT', $url, $data);
@@ -119,7 +119,7 @@ class RaynetApiClient
     /**
      * POST request (update)
      */
-    public function post(string $endpoint, array $data): array
+    public function post(string $endpoint, array $data): ?array
     {
         $url = self::BASE_URL . $endpoint;
         return $this->request('POST', $url, $data);

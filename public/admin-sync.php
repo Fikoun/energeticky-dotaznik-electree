@@ -628,6 +628,7 @@ header('Content-Type: text/html; charset=utf-8');
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kontakt</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stav sync</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Raynet ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lead ID</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Synchronizováno</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Akce</th>
                         </tr>
@@ -651,8 +652,8 @@ header('Content-Type: text/html; charset=utf-8');
                                         ${form.sync_status.label}
                                     </span>
                                     ${form.raynet_sync_error ? `
-                                        <div class="text-xs text-red-600 mt-1 max-w-xs truncate" title="${escapeHtml(form.raynet_sync_error)}">
-                                            ${escapeHtml(form.raynet_sync_error.substring(0, 50))}...
+                                        <div class="text-xs mt-1 max-w-xs truncate ${form.raynet_sync_error.startsWith('LEAD_WARNING:') ? 'text-amber-600' : 'text-red-600'}" title="${escapeHtml(form.raynet_sync_error)}">
+                                            ${form.raynet_sync_error.startsWith('LEAD_WARNING:') ? '⚠️ ' : ''}${escapeHtml(form.raynet_sync_error.substring(0, 50))}...
                                         </div>
                                     ` : ''}
                                 </td>
@@ -662,6 +663,16 @@ header('Content-Type: text/html; charset=utf-8');
                                            class="text-primary-600 hover:underline">
                                             ${form.raynet_company_id}
                                         </a>
+                                    ` : '-'}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    ${form.raynet_lead_id ? `
+                                        <a href="https://app.raynet.cz/electree/?view=DetailView&en=Lead&ei=${form.raynet_lead_id}" target="_blank"
+                                           class="text-primary-600 hover:underline">
+                                            ${form.raynet_lead_id}
+                                        </a>
+                                    ` : (form.raynet_company_id && form.raynet_sync_error && form.raynet_sync_error.startsWith('LEAD_WARNING:')) ? `
+                                        <span class="text-amber-600 text-xs" title="${escapeHtml(form.raynet_sync_error)}">⚠️ selhal</span>
                                     ` : '-'}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
