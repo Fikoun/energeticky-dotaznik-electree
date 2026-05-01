@@ -35,6 +35,7 @@ class RaynetCustomFields
     public const TYPE_PERCENT = 'PERCENT';
     public const TYPE_FILE = 'FILE';
     public const TYPE_FILE_LINKS = 'TEXT'; // File URLs stored as text
+    public const CUSTOM_FIELDS_QUOTA = 100;
     
     // Group names for custom fields - displayed as sections in Raynet UI
     public const GROUP_COMPANY_INFO = 'EnergyForms - Společnost';
@@ -1591,8 +1592,17 @@ class RaynetCustomFields
             $existingLabels[$label] = $field['name'] ?? null;
             $existingFieldMap[$label] = $field;
         }
+
+        $totalCustomFields = $this->getTotalCustomFieldsCount();
+        $availableSlots = max(0, self::CUSTOM_FIELDS_QUOTA - $totalCustomFields);
         
-        error_log("createFieldsFromFormMapping: Found " . count($existingLabels) . " existing fields in Raynet");
+        error_log(
+            "createFieldsFromFormMapping: Found " . count($existingLabels) .
+            " existing {$entityType} fields in Raynet, total fields: {$totalCustomFields}, " .
+            "available slots: {$availableSlots}/" . self::CUSTOM_FIELDS_QUOTA
+        );
+
+        $pendingFields = [];
         
         foreach ($formFields as $formField) {
             if (!isset(self::FORM_FIELDS[$formField])) {
@@ -1623,6 +1633,53 @@ class RaynetCustomFields
             
             // Use provided group name or field's default group
             $fieldGroup = $groupName ?? $fieldDef['group'] ?? self::GROUP_METADATA;
+
+            $pendingFields[] = [
+                'formField' => $formField,
+                'fieldDef' => $fieldDef,
+                'fieldGroup' => $fieldGroup,
+            ];
+        }
+
+        // When approaching quota, prefer business fields and defer attachment/link fields.
+        usort($pendingFields, function (array $a, array $b): int {
+            $aLowPriority = $this->isLowPriorityFormField($a['formField']);
+            $bLowPriority = $this->isLowPriorityFormField($b['formField']);
+            if ($aLowPriority === $bLowPriority) {
+                return 0;
+            }
+            return $aLowPriority ? 1 : -1;
+        });
+
+        if ($availableSlots === 0 && !empty($pendingFields)) {
+            foreach ($pendingFields as $pendingField) {
+                $results['skipped'][] = [
+                    'formField' => $pendingField['formField'],
+                    'label' => $pendingField['fieldDef']['label'] ?? $pendingField['formField'],
+                    'reason' => 'Přeskočeno: dosažen limit 100 vlastních polí v Raynet',
+                    'quotaExceeded' => true,
+                ];
+            }
+
+            return $results;
+        }
+
+        for ($i = 0; $i < count($pendingFields); $i++) {
+            $pendingField = $pendingFields[$i];
+            $formField = $pendingField['formField'];
+            $fieldDef = $pendingField['fieldDef'];
+            $fieldGroup = $pendingField['fieldGroup'];
+            $fieldLabel = $fieldDef['label'] ?? $formField;
+
+            if (count($results['created']) >= $availableSlots) {
+                $results['skipped'][] = [
+                    'formField' => $formField,
+                    'label' => $fieldLabel,
+                    'reason' => 'Přeskočeno: dosažen limit 100 vlastních polí v Raynet',
+                    'quotaExceeded' => true,
+                ];
+                continue;
+            }
             
             try {
                 // MONETARY type can be problematic - use DECIMAL instead
@@ -1648,17 +1705,43 @@ class RaynetCustomFields
                 $results['created'][] = [
                     'formField' => $formField,
                     'raynetField' => $result['fieldName'],
-                    'label' => $fieldDef['label'],
+                    'label' => $fieldLabel,
                     'group' => $fieldGroup
                 ];
                 
                 error_log("createFieldsFromFormMapping: Created field {$formField} => {$result['fieldName']}");
             } catch (RaynetException $e) {
-                error_log("createFieldsFromFormMapping: FAILED to create {$formField}: " . $e->getMessage());
+                $errorMessage = $e->getMessage();
+
+                if ($this->isQuotaExceededError($errorMessage)) {
+                    error_log("createFieldsFromFormMapping: Quota reached while creating {$formField}: {$errorMessage}");
+
+                    // Mark current and remaining fields as skipped due to quota.
+                    $results['skipped'][] = [
+                        'formField' => $formField,
+                        'label' => $fieldLabel,
+                        'reason' => 'Přeskočeno: dosažen limit 100 vlastních polí v Raynet',
+                        'quotaExceeded' => true,
+                    ];
+
+                    for ($j = $i + 1; $j < count($pendingFields); $j++) {
+                        $remainingField = $pendingFields[$j];
+                        $results['skipped'][] = [
+                            'formField' => $remainingField['formField'],
+                            'label' => $remainingField['fieldDef']['label'] ?? $remainingField['formField'],
+                            'reason' => 'Přeskočeno: dosažen limit 100 vlastních polí v Raynet',
+                            'quotaExceeded' => true,
+                        ];
+                    }
+
+                    break;
+                }
+
+                error_log("createFieldsFromFormMapping: FAILED to create {$formField}: {$errorMessage}");
                 $results['errors'][] = [
                     'field' => $formField,
-                    'label' => $fieldDef['label'],
-                    'error' => $e->getMessage()
+                    'label' => $fieldLabel,
+                    'error' => $errorMessage
                 ];
             }
             
@@ -1667,6 +1750,41 @@ class RaynetCustomFields
         }
         
         return $results;
+    }
+
+    private function isQuotaExceededError(string $errorMessage): bool
+    {
+        return stripos($errorMessage, 'QuotaExceededException') !== false
+            || stripos($errorMessage, 'Exceeded quota limit CUSTOM_FIELDS') !== false;
+    }
+
+    private function isLowPriorityFormField(string $formField): bool
+    {
+        $fieldDef = self::FORM_FIELDS[$formField] ?? null;
+        if ($fieldDef === null) {
+            return false;
+        }
+
+        if (($fieldDef['group'] ?? '') === self::GROUP_ATTACHMENTS) {
+            return true;
+        }
+
+        return ($fieldDef['type'] ?? '') === self::TYPE_FILE_LINKS;
+    }
+
+    private function getTotalCustomFieldsCount(): int
+    {
+        $config = $this->getConfig();
+        $total = 0;
+
+        foreach ([self::ENTITY_COMPANY, self::ENTITY_PERSON, self::ENTITY_LEAD] as $entityType) {
+            $entityFields = $config[$entityType] ?? [];
+            if (is_array($entityFields)) {
+                $total += count($entityFields);
+            }
+        }
+
+        return $total;
     }
     
     /**

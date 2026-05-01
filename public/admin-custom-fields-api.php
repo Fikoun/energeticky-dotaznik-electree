@@ -329,14 +329,47 @@ try {
             
             // Pass null for groupName to use each field's defined group
             $createResult = $customFields->createFieldsFromFormMapping($entityType, $formFields, $groupName);
+
+            // Defensive normalization: quota errors should be treated as skipped,
+            // not hard errors, even if lower layers return them in errors[].
+            $normalizedErrors = [];
+            $quotaSkippedFromErrors = 0;
+            foreach (($createResult['errors'] ?? []) as $errorItem) {
+                $errorMessage = (string)($errorItem['error'] ?? '');
+                if (isQuotaExceededErrorMessage($errorMessage)) {
+                    $createResult['skipped'][] = [
+                        'formField' => $errorItem['field'] ?? null,
+                        'label' => $errorItem['label'] ?? ($errorItem['field'] ?? 'Neznámé pole'),
+                        'reason' => 'Přeskočeno: dosažen limit 100 vlastních polí v Raynet',
+                        'quotaExceeded' => true,
+                    ];
+                    $quotaSkippedFromErrors++;
+                    continue;
+                }
+                $normalizedErrors[] = $errorItem;
+            }
+            $createResult['errors'] = $normalizedErrors;
             
             $skippedCount = count($createResult['skipped'] ?? []);
+            $errorCount = count($createResult['errors'] ?? []);
+
+            $quotaSkippedCount = 0;
+            foreach (($createResult['skipped'] ?? []) as $skippedItem) {
+                if (!empty($skippedItem['quotaExceeded'])) {
+                    $quotaSkippedCount++;
+                }
+            }
+
+            $existingSkippedCount = max(0, $skippedCount - $quotaSkippedCount);
             
             $logger->info(Logger::TYPE_RAYNET, "Batch created custom fields", [
                 'entity_type' => $entityType,
                 'created_count' => count($createResult['created']),
                 'skipped_count' => $skippedCount,
-                'error_count' => count($createResult['errors']),
+                'error_count' => $errorCount,
+                'quota_skipped_count' => $quotaSkippedCount,
+                'existing_skipped_count' => $existingSkippedCount,
+                'quota_reclassified_from_errors' => $quotaSkippedFromErrors,
                 'errors' => $createResult['errors']
             ]);
             
@@ -379,10 +412,12 @@ try {
             $result = [
                 'success' => true,
                 'message' => sprintf(
-                    'Vytvořeno %d polí, přeskočeno %d (již existují), %d chyb',
+                    'Vytvořeno %d polí, přeskočeno %d (již existují: %d, kvóta: %d), %d chyb',
                     count($createResult['created']),
                     $skippedCount,
-                    count($createResult['errors'])
+                    $existingSkippedCount,
+                    $quotaSkippedCount,
+                    $errorCount
                 ),
                 'data' => $createResult
             ];
@@ -504,6 +539,12 @@ function validateCsrf(array $data): void
     if (!isset($_SESSION['csrf_token']) || $token !== $_SESSION['csrf_token']) {
         throw new Exception('Invalid CSRF token');
     }
+}
+
+function isQuotaExceededErrorMessage(string $errorMessage): bool
+{
+    return stripos($errorMessage, 'QuotaExceededException') !== false
+        || stripos($errorMessage, 'Exceeded quota limit CUSTOM_FIELDS') !== false;
 }
 
 /**

@@ -114,7 +114,7 @@ header('Content-Type: text/html; charset=utf-8');
                             Název instance
                         </label>
                         <input type="text" id="raynet_instance_name" name="instance_name" required
-                        value="app.raynet.cz/bateree"
+                        value="bateree"
                                placeholder="nazev-firmy"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                         <p class="mt-1 text-xs text-gray-400">Název vaší Raynet instance (z URL: nazev-firmy.raynet.cz)</p>
