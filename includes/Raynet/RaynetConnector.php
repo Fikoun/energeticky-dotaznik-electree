@@ -15,6 +15,7 @@ require_once __DIR__ . '/RaynetCompany.php';
 require_once __DIR__ . '/RaynetPerson.php';
 require_once __DIR__ . '/RaynetLead.php';
 require_once __DIR__ . '/RaynetCustomFields.php';
+require_once __DIR__ . '/../raynet-sync-helpers.php';
 
 class RaynetConnector
 {
@@ -501,7 +502,7 @@ class RaynetConnector
             }
         }
 
-        sendDuplicateLeadNotificationEmail($notifyEmail, $formId, $formData, $existing);
+        \sendDuplicateLeadNotificationEmail($notifyEmail, $formId, $formData, $existing);
     }
     
     /**
