@@ -53,7 +53,8 @@ try {
     $logger = new Logger($pdo, $_SESSION['user_id'] ?? null);
     
     // Initialize Raynet client and custom fields handler
-    $client = RaynetApiClient::fromConfig();
+    // Use the logged-in admin's per-user credentials (global config has empty credentials)
+    $client = RaynetApiClient::fromUserCredentials((string)($_SESSION['user_id'] ?? ''), $pdo);
     $customFields = new RaynetCustomFields($client);
     
     $result = [];
