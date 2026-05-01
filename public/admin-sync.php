@@ -655,7 +655,7 @@ header('Content-Type: text/html; charset=utf-8');
                                 </td>
                                 <td class="px-3 py-3 text-sm text-gray-500">
                                     ${form.raynet_company_id ? `
-                                        <a href="https://app.raynet.cz/electree/?view=DetailView&en=Company&ei=${form.raynet_company_id}" target="_blank" 
+                                        <a href="https://app.raynet.cz/bateree/?view=DetailView&en=Company&ei=${form.raynet_company_id}" target="_blank" 
                                            class="text-primary-600 hover:underline text-xs">
                                             ${form.raynet_company_id}
                                         </a>
@@ -663,7 +663,7 @@ header('Content-Type: text/html; charset=utf-8');
                                 </td>
                                 <td class="px-3 py-3 text-sm text-gray-500">
                                     ${form.raynet_lead_id ? `
-                                        <a href="https://app.raynet.cz/electree/?view=DetailView&en=Lead&ei=${form.raynet_lead_id}" target="_blank"
+                                        <a href="https://app.raynet.cz/bateree/?view=DetailView&en=Lead&ei=${form.raynet_lead_id}" target="_blank"
                                            class="text-primary-600 hover:underline text-xs">
                                             ${form.raynet_lead_id}
                                         </a>
@@ -836,7 +836,7 @@ header('Content-Type: text/html; charset=utf-8');
                                                 class="text-gray-600 hover:text-gray-900 text-xs font-medium px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">
                                             View JSON
                                         </button>
-                                        <a href="https://app.raynet.cz/electree/?view=DetailView&en=Company&ei=${company.id}" target="_blank" 
+                                        <a href="https://app.raynet.cz/bateree/?view=DetailView&en=Company&ei=${company.id}" target="_blank" 
                                            class="text-primary-600 hover:text-primary-900">
                                             Otevřít v Raynet →
                                         </a>
@@ -1361,7 +1361,7 @@ header('Content-Type: text/html; charset=utf-8');
                                     <div>
                                         <dt class="font-medium text-gray-700">Raynet ID:</dt>
                                         <dd class="text-gray-900">
-                                            <a href="https://app.raynet.cz/electree/?view=DetailView&en=Company&ei=${data.raynet?.id}" 
+                                            <a href="https://app.raynet.cz/bateree/?view=DetailView&en=Company&ei=${data.raynet?.id}" 
                                                target="_blank" class="text-primary-600 hover:underline">
                                                 #${data.raynet?.id} →
                                             </a>
@@ -1455,7 +1455,7 @@ header('Content-Type: text/html; charset=utf-8');
                                                 </div>
                                             </div>
                                         </div>
-                                        <a href="https://app.raynet.cz/electree/?view=DetailView&en=Company&ei=${candidate.id}" 
+                                        <a href="https://app.raynet.cz/bateree/?view=DetailView&en=Company&ei=${candidate.id}" 
                                            target="_blank" class="text-primary-600 hover:text-primary-800 text-sm"
                                            onclick="event.stopPropagation()">
                                             Zobrazit v Raynet →
@@ -1880,7 +1880,7 @@ header('Content-Type: text/html; charset=utf-8');
                 `<span class="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${color}">${count} ${label}</span>`;
 
             const raynetUrl = meta.raynet_company_id
-                ? `https://app.raynet.cz/electree/?view=DetailView&en=Company&ei=${meta.raynet_company_id}`
+                ? `https://app.raynet.cz/bateree/?view=DetailView&en=Company&ei=${meta.raynet_company_id}`
                 : null;
 
             container.innerHTML = `
