@@ -176,7 +176,14 @@ abstract class RaynetEntity
         $result = $this->client->put($this->getEndpoint(), $this->data);
         
         if (!$result || !isset($result['data']['id'])) {
-            throw new RaynetException("Failed to create entity: no ID returned");
+            $entityType = trim($this->getEndpoint(), '/');
+            // Include actual Raynet response in the message for easier debugging
+            $responseInfo = $result
+                ? json_encode(array_intersect_key($result, array_flip(['success', 'message', 'data'])))
+                : 'empty/null response';
+            throw new RaynetException(
+                "Failed to create {$entityType} entity: no ID returned. Response: {$responseInfo}"
+            );
         }
         
         $this->id = $result['data']['id'];

@@ -1631,14 +1631,18 @@ class RaynetCustomFields
                     error_log("createFieldsFromFormMapping: Converting MONETARY to DECIMAL for field {$formField}");
                     $dataType = self::TYPE_DECIMAL;
                 }
-                
+
+                // TEXT (large text) fields do not support showInListView / showInFilterView in Raynet.
+                // Sending true for those properties causes Raynet to return success:false.
+                $supportsListAndFilter = !in_array($dataType, [self::TYPE_TEXT, self::TYPE_FILE], true);
+
                 $result = $this->createField($entityType, [
                     'label' => $fieldDef['label'],
                     'groupName' => $fieldGroup,
                     'dataType' => $dataType,
                     'description' => "EnergyForms: {$formField}",
-                    'showInListView' => true,
-                    'showInFilterView' => true,
+                    'showInListView' => $supportsListAndFilter,
+                    'showInFilterView' => $supportsListAndFilter,
                 ]);
                 
                 $results['created'][] = [

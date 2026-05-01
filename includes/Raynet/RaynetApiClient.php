@@ -233,6 +233,14 @@ class RaynetApiClient
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new RaynetException("Failed to parse Raynet API response: " . json_last_error_msg());
         }
+
+        // Some Raynet endpoints return HTTP 200 with { "success": false, "message": "..." }
+        // instead of a 4xx status code. Surface that as a proper exception.
+        if (isset($decoded['success']) && $decoded['success'] === false) {
+            $msg = $decoded['message'] ?? $decoded['translatedMessage'] ?? 'Unknown Raynet error';
+            error_log("Raynet API: success=false response: " . json_encode($decoded));
+            throw new RaynetException("Raynet API error: {$msg} (HTTP {$statusCode})", $statusCode);
+        }
         
         return $decoded;
     }
