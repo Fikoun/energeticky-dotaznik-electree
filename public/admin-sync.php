@@ -636,7 +636,7 @@ header('Content-Type: text/html; charset=utf-8');
                         ${forms.map(form => `
                             <tr class="hover:bg-gray-50">
                                 <td class="px-3 py-3 text-sm">
-                                    <div class="font-medium text-gray-900 truncate" title="${escapeHtml(form.company_name || '')}">\${escapeHtml(form.company_name || '-')}</div>
+                                    <div class="font-medium text-gray-900 truncate" title="${escapeHtml(form.company_name || '')}">${escapeHtml(form.company_name || '-')}</div>
                                     <div class="text-xs text-gray-500 truncate">${escapeHtml(form.email || '')}</div>
                                 </td>
                                 <td class="px-3 py-3 text-sm">
