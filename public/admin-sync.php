@@ -620,66 +620,62 @@ header('Content-Type: text/html; charset=utf-8');
             }
             
             container.innerHTML = `
-                <table class="min-w-full divide-y divide-gray-200">
+                <table class="w-full table-fixed divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Firma</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kontakt</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stav sync</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Raynet ID</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lead ID</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Synchronizováno</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Akce</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase w-36">Firma</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase w-32">Kontakt</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase w-28">Stav sync</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase w-20">Raynet ID</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase w-20">Lead ID</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase w-28">Synchronizováno</th>
+                            <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-32">Akce</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
                         ${forms.map(form => `
                             <tr class="hover:bg-gray-50">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    ${escapeHtml(String(form.id).substring(0, 12))}...
+                                <td class="px-3 py-3 text-sm">
+                                    <div class="font-medium text-gray-900 truncate" title="${escapeHtml(form.company_name || '')}">\${escapeHtml(form.company_name || '-')}</div>
+                                    <div class="text-xs text-gray-500 truncate">${escapeHtml(form.email || '')}</div>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-medium text-gray-900">${escapeHtml(form.company_name || '-')}</div>
-                                    <div class="text-sm text-gray-500">${escapeHtml(form.email || '')}</div>
+                                <td class="px-3 py-3 text-sm">
+                                    <div class="text-gray-900 truncate">${escapeHtml(form.contact_person || '-')}</div>
+                                    <div class="text-xs text-gray-500 truncate">${escapeHtml(form.phone || '')}</div>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900">${escapeHtml(form.contact_person || '-')}</div>
-                                    <div class="text-sm text-gray-500">${escapeHtml(form.phone || '')}</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="px-2 py-1 text-xs font-medium rounded-full ${form.sync_status.class}">
+                                <td class="px-3 py-3">
+                                    <span class="px-2 py-1 text-xs font-medium rounded-full ${form.sync_status.class} whitespace-nowrap">
                                         ${form.sync_status.label}
                                     </span>
                                     ${form.raynet_sync_error ? `
-                                        <div class="text-xs mt-1 max-w-xs truncate ${form.raynet_sync_error.startsWith('LEAD_WARNING:') ? 'text-amber-600' : 'text-red-600'}" title="${escapeHtml(form.raynet_sync_error)}">
-                                            ${form.raynet_sync_error.startsWith('LEAD_WARNING:') ? '⚠️ ' : ''}${escapeHtml(form.raynet_sync_error.substring(0, 50))}...
+                                        <div class="text-xs mt-1 truncate ${form.raynet_sync_error.startsWith('LEAD_WARNING:') ? 'text-amber-600' : 'text-red-600'}" title="${escapeHtml(form.raynet_sync_error)}">
+                                            ${form.raynet_sync_error.startsWith('LEAD_WARNING:') ? '⚠️ ' : ''}${escapeHtml(form.raynet_sync_error.substring(0, 30))}...
                                         </div>
                                     ` : ''}
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <td class="px-3 py-3 text-sm text-gray-500">
                                     ${form.raynet_company_id ? `
                                         <a href="https://app.raynet.cz/electree/?view=DetailView&en=Company&ei=${form.raynet_company_id}" target="_blank" 
-                                           class="text-primary-600 hover:underline">
+                                           class="text-primary-600 hover:underline text-xs">
                                             ${form.raynet_company_id}
                                         </a>
                                     ` : '-'}
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <td class="px-3 py-3 text-sm text-gray-500">
                                     ${form.raynet_lead_id ? `
                                         <a href="https://app.raynet.cz/electree/?view=DetailView&en=Lead&ei=${form.raynet_lead_id}" target="_blank"
-                                           class="text-primary-600 hover:underline">
+                                           class="text-primary-600 hover:underline text-xs">
                                             ${form.raynet_lead_id}
                                         </a>
                                     ` : (form.raynet_company_id && form.raynet_sync_error && form.raynet_sync_error.startsWith('LEAD_WARNING:')) ? `
                                         <span class="text-amber-600 text-xs" title="${escapeHtml(form.raynet_sync_error)}">⚠️ selhal</span>
                                     ` : '-'}
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <td class="px-3 py-3 text-xs text-gray-500">
                                     ${form.synced_at_formatted || '-'}
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <div class="flex items-center justify-end gap-2 flex-wrap">
+                                <td class="px-3 py-3 text-right text-sm font-medium">
+                                    <div class="flex items-center justify-end gap-1 flex-wrap">
                                     ${form.sync_status.status === 'error' ? `
                                         <button onclick="retrySingleForm('${form.id}')" class="text-primary-600 hover:text-primary-900">
                                             🔄 Znovu
