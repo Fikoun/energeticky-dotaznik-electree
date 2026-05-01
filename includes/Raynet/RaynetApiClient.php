@@ -163,9 +163,15 @@ class RaynetApiClient
      */
     private function executeRequest(string $method, string $url, ?array $data = null): ?array
     {
+        // X-Instance-Name must be just the bare name (e.g. "bateree"), not a URL.
+        // Strip any URL prefix in case the user stored "app.raynet.cz/bateree" or "https://app.raynet.cz/bateree".
+        $instanceName = preg_replace('#^https?://[^/]+/#', '', $this->instanceName);
+        $instanceName = preg_replace('#^[^/]+/#', '', $instanceName);
+        $instanceName = trim($instanceName, '/');
+
         $headers = [
             'Authorization: Basic ' . base64_encode("{$this->username}:{$this->apiKey}"),
-            'X-Instance-Name: ' . $this->instanceName,
+            'X-Instance-Name: ' . $instanceName,
             'Content-Type: application/json',
             'Accept: application/json'
         ];
