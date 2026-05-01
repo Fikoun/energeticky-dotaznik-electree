@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-session_set_cookie_params(["path" => "/", "httponly" => true, "samesite" => "Lax"]);
+session_set_cookie_params(["path" => "/", "httponly" => true, "samesite" => "Lax", "secure" => (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off")]);
 session_start();
 
 // Any authenticated user can manage their own Raynet credentials

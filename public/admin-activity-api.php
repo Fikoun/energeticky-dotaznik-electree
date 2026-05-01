@@ -13,7 +13,7 @@ error_reporting(0);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
-session_set_cookie_params(["path" => "/", "httponly" => true, "samesite" => "Lax"]);
+session_set_cookie_params(["path" => "/", "httponly" => true, "samesite" => "Lax", "secure" => (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off")]);
 session_start();
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -22,13 +22,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 try {
-    // Dočasně zakázáno pro testování
-    /*
     // Kontrola admin oprávnění
     if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
-        throw new Exception('Nedostatečná oprávnění');
+        ob_end_clean();
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Nedostatečná oprávnění']);
+        exit;
     }
-    */
 
     $input = file_get_contents('php://input');
     $data = json_decode($input, true);

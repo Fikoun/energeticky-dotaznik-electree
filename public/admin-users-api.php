@@ -5,7 +5,7 @@
  */
 
 // Spustit session jako první věc
-session_set_cookie_params(["path" => "/", "httponly" => true, "samesite" => "Lax"]);
+session_set_cookie_params(["path" => "/", "httponly" => true, "samesite" => "Lax", "secure" => (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off")]);
 session_start();
 
 // Zabránit jakémukoli HTML výstupu
@@ -209,6 +209,14 @@ function validateUserData($data, $isUpdate = false) {
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     ob_end_clean();
     exit(0);
+}
+
+// Kontrola admin oprávnění
+if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
+    ob_end_clean();
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Nedostatečná oprávnění']);
+    exit;
 }
 
 try {

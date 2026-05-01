@@ -53,7 +53,7 @@ export const clearPersistedFormId = () => {
   }
 }
 
-const useAutoSave = (formMethods, user, currentStep, delay = 3000) => {
+const useAutoSave = (formMethods, user, currentStep, delay = 3000, publicLinkToken = null) => {
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState(null)
   // Initialize formId from localStorage to persist across page reloads
@@ -62,6 +62,11 @@ const useAutoSave = (formMethods, user, currentStep, delay = 3000) => {
   const [isDisabled, setIsDisabled] = useState(false) // Flag to disable auto-save after submission
   const saveTimeoutRef = useRef(null)
   const saveInFlightRef = useRef(null) // Track in-flight save promise
+  // Keep publicLinkToken always current without making it a reactive dependency.
+  // Putting it in the useEffect deps array would cause subscription teardown on
+  // every render, clearing the pending save timeout before it fires.
+  const publicLinkTokenRef = useRef(publicLinkToken)
+  useEffect(() => { publicLinkTokenRef.current = publicLinkToken })
   
   // Wrapper to persist formId when it changes
   const setFormId = (newFormId) => {
@@ -165,7 +170,10 @@ const useAutoSave = (formMethods, user, currentStep, delay = 3000) => {
           formId: formId,
           tempFormId: tempFormId, // Pass temp ID for file migration
           currentStep: currentStep,
-          lastModified: new Date().toISOString()
+          lastModified: new Date().toISOString(),
+          // Include public link token when saving via a shared link so the server
+          // can validate and associate the draft with the link owner's account.
+          ...(publicLinkTokenRef.current ? { publicLink: { token: publicLinkTokenRef.current } } : {}),
         }
 
         console.log('AutoSave: Sending data to server', { 

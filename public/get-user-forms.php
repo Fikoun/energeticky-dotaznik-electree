@@ -17,6 +17,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
+// Session auth – must be called before any output
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'path'     => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+        'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+    ]);
+    session_start();
+}
+
+if (!isset($_SESSION['user_id'])) {
+    ob_end_clean();
+    http_response_code(401);
+    echo json_encode(['error' => 'Nepřihlášený uživatel']);
+    exit;
+}
+
 // Database configuration - use centralized config
 require_once __DIR__ . '/../config/database.php';
 
@@ -34,12 +52,18 @@ try {
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $userId = $_GET['userId'] ?? null;
-    
-    if (!$userId) {
+
+    // Users can only retrieve their own forms; admins can retrieve any user's forms
+    if ($userId && $userId !== $_SESSION['user_id'] && ($_SESSION['user_role'] ?? '') !== 'admin') {
         ob_end_clean();
-        http_response_code(400);
-        echo json_encode(['error' => 'Missing userId parameter']);
+        http_response_code(403);
+        echo json_encode(['error' => 'Nedostatečná oprávnění']);
         exit;
+    }
+
+    // Default to the current user's ID if none provided
+    if (!$userId) {
+        $userId = $_SESSION['user_id'];
     }
 
     if ($useDatabase) {
@@ -80,49 +104,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $useDatabase = false;
         }
     }
-    
-    // Fallback na mock data pokud databáze nefunguje
+
     if (!$useDatabase) {
-        // Mock data pro testování
-        $mockForms = [
-            [
-                'id' => 'form_1',
-                'user_id' => $userId,
-                'company_name' => 'Testovací firma s.r.o.',
-                'contact_person' => 'Jan Novák',
-                'phone' => '+420123456789',
-                'email' => 'jan.novak@test.cz',
-                'status' => 'completed',
-                'form_data' => '{"step1":{"companyName":"Testovací firma s.r.o.","contactPerson":"Jan Novák"},"step2":{"electricityBill":"5000"},"step8":{"finalSubmit":true}}',
-                'gdpr_token' => null,
-                'gdpr_confirmed_at' => date('c'),
-                'created_at' => date('c', strtotime('-2 days')),
-                'updated_at' => date('c', strtotime('-1 day'))
-            ],
-            [
-                'id' => 'form_2',
-                'user_id' => $userId,
-                'company_name' => 'Rozpracovaná firma',
-                'contact_person' => 'Marie Svobodová',
-                'phone' => '+420987654321',
-                'email' => 'marie@rozpracovana.cz',
-                'status' => 'draft',
-                'form_data' => '{"step1":{"companyName":"Rozpracovaná firma","contactPerson":"Marie Svobodová"},"step2":{"electricityBill":"3000"}}',
-                'gdpr_token' => null,
-                'gdpr_confirmed_at' => null,
-                'created_at' => date('c', strtotime('-5 days')),
-                'updated_at' => date('c', strtotime('-3 days'))
-            ]
-        ];
-        
         ob_end_clean();
-        echo json_encode([
-            'success' => true,
-            'forms' => $mockForms,
-            'note' => 'Using mock data - database not available'
-        ]);
+        http_response_code(503);
+        echo json_encode(['success' => false, 'error' => 'Databáze není dostupná']);
     }
-    
+
 } else {
     ob_end_clean();
     http_response_code(405);

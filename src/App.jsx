@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useForm, FormProvider } from 'react-hook-form'
 import StepIndicator from './components/StepIndicator'
 import FormStep1 from './components/steps/FormStep1'
@@ -177,13 +177,22 @@ function App() {
   })
 
   // Auto-save functionality
-  // In public mode, create a synthetic user from the link's owner so auto-save works
-  const effectiveUser = user || (publicLinkData ? {
-    id: publicLinkData.owner_user_id,
-    name: publicLinkData.recipient_name || 'Public User',
-    email: publicLinkData.recipient_email,
-  } : null)
-  const autoSaveStatus = useAutoSave(methods, effectiveUser, currentStep)
+  // useMemo ensures effectiveUser is a stable reference – a new object literal
+  // every render would cause useAutoSave's useEffect to re-run on every render,
+  // clearing the pending save timeout before it fires (autosave never fires).
+  const effectiveUser = useMemo(() => {
+    if (user) return user
+    if (publicLinkData) return {
+      id: publicLinkData.owner_user_id,
+      name: publicLinkData.recipient_name || 'Public User',
+      email: publicLinkData.recipient_email,
+    }
+    return null
+  }, [user, publicLinkData])
+
+  // Pass the raw token string (stable – never changes after mount) so auto-save
+  // can include it in requests, allowing the server to validate the public link.
+  const autoSaveStatus = useAutoSave(methods, effectiveUser, currentStep, 3000, publicToken)
   const { formId, setFormId, disableAutoSave, enableAutoSave } = autoSaveStatus
 
   const handleLogin = (userData) => {

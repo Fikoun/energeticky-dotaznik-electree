@@ -22,13 +22,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 try {
     // Start session safely with consistent cookie settings
     if (session_status() === PHP_SESSION_NONE) {
-        // Ensure session cookie is available across all paths
         session_set_cookie_params([
-            'path' => '/',
+            'path'     => '/',
             'httponly' => true,
-            'samesite' => 'Lax'
+            'samesite' => 'Lax',
+            'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
         ]);
-        @session_start();
+        session_start();
     }
 
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -105,82 +105,47 @@ try {
                 require_once $dbConfigPath;
             }
             
-            // Authenticate against database first, fall back to hardcoded admin
+            // Authenticate against database
             $authenticatedUser = null;
-            
+
             if (function_exists('getDbConnection')) {
                 try {
                     $pdo = getDbConnection();
                     $stmt = $pdo->prepare("SELECT id, name, email, role, password_hash FROM users WHERE email = ? OR name = ? LIMIT 1");
                     $stmt->execute([$username, $username]);
                     $dbUser = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
+
                     if ($dbUser) {
                         // Check password against password_hash column
                         $passwordValid = false;
                         if (!empty($dbUser['password_hash'])) {
                             $passwordValid = password_verify($password, $dbUser['password_hash']);
                         }
-                        // Hardcoded admin fallback check
-                        if (!$passwordValid && $dbUser['role'] === 'admin' && $username === 'admin' && $password === 'admin123') {
-                            $passwordValid = true;
-                        }
-                        
+
                         if ($passwordValid) {
                             $authenticatedUser = [
-                                'id' => $dbUser['id'],
-                                'name' => $dbUser['name'],
+                                'id'    => $dbUser['id'],
+                                'name'  => $dbUser['name'],
                                 'email' => $dbUser['email'],
-                                'role' => $dbUser['role']
+                                'role'  => $dbUser['role']
                             ];
                         }
                     }
                 } catch (Exception $e) {
                     error_log("Auth DB lookup failed: " . $e->getMessage());
-                    // Fall through to hardcoded check
                 }
-            }
-            
-            // Fallback: hardcoded admin credentials (lookup real ID from DB)
-            if (!$authenticatedUser && $username === 'admin' && $password === 'admin123') {
-                $adminId = 'admin_' . substr(md5('admin@electree.cz'), 0, 13);
-                
-                // Try to find or create the admin user in DB
-                if (function_exists('getDbConnection')) {
-                    try {
-                        $pdo = getDbConnection();
-                        // Find existing admin user
-                        $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY created_at ASC LIMIT 1");
-                        $stmt->execute();
-                        $existingAdmin = $stmt->fetch(PDO::FETCH_ASSOC);
-                        
-                        if ($existingAdmin) {
-                            $adminId = $existingAdmin['id'];
-                        } else {
-                            // Create admin user if not exists
-                            $stmt = $pdo->prepare("INSERT IGNORE INTO users (id, name, email, role, is_active, created_at) VALUES (?, 'admin', 'admin@electree.cz', 'admin', 1, NOW())");
-                            $stmt->execute([$adminId]);
-                        }
-                    } catch (Exception $e) {
-                        error_log("Auth admin user lookup failed: " . $e->getMessage());
-                    }
-                }
-                
-                $authenticatedUser = [
-                    'id' => $adminId,
-                    'name' => 'Administrator',
-                    'email' => 'admin@electree.cz',
-                    'role' => 'admin'
-                ];
             }
             
             if ($authenticatedUser) {
+                // Regenerate session ID on login to prevent session fixation
+                session_regenerate_id(true);
+
                 $_SESSION['user_id'] = $authenticatedUser['id'];
                 $_SESSION['username'] = $authenticatedUser['name'];
                 $_SESSION['user_email'] = $authenticatedUser['email'];
                 $_SESSION['user_role'] = $authenticatedUser['role'];
                 $_SESSION['is_logged_in'] = true;
-                
+
                 http_response_code(200);
                 echo json_encode([
                     'success' => true,
@@ -200,7 +165,8 @@ try {
         
         // Handle logout
         if ($action === 'logout') {
-            @session_destroy();
+            $_SESSION = [];
+            session_destroy();
             http_response_code(200);
             echo json_encode([
                 'success' => true,
@@ -227,16 +193,13 @@ try {
     exit(0);
 
 } catch (Throwable $e) {
-    // Catch ALL errors and return JSON
+    // Log full details server-side only; never expose to client
     error_log('Auth.php fatal error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
-    
+
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Internal server error',
-        'message' => $e->getMessage(),
-        'file' => $e->getFile(),
-        'line' => $e->getLine()
+        'error'   => 'Internal server error',
     ]);
     exit(0);
 }
