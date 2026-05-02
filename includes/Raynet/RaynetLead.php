@@ -102,6 +102,19 @@ class RaynetLead extends RaynetEntity
     }
 
     /**
+     * Attach custom fields payload to this lead before create/update.
+     *
+     * @param array $customFields Key/value map from RaynetCustomFields::buildCustomFieldsPayload()
+     */
+    public function setCustomFields(array $customFields): self
+    {
+        if (!empty($customFields)) {
+            $this->data['customFields'] = $customFields;
+        }
+        return $this;
+    }
+
+    /**
      * Find an existing lead by IČO (registration number).
      */
     public function findByIco(string $ico): ?self

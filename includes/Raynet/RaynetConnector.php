@@ -237,7 +237,7 @@ class RaynetConnector
 
             // 2. Sync lead – always create a new lead; duplicate = notify admin only
             try {
-                $leadId = $this->syncLead($parsedFormData, $formId, $result['company_id']);
+                $leadId = $this->syncLead($parsedFormData, $formId, $result['company_id'], $customFields);
                 $result['lead_id'] = $leadId;
                 error_log("Raynet sync: Lead created with ID {$leadId}");
             } catch (\Exception $e) {
@@ -446,8 +446,12 @@ class RaynetConnector
      * @param int|null   $raynetCompanyId Raynet company ID from the company sync step
      * @return int  The newly created Raynet lead ID
      */
-    private function syncLead(array $parsedFormData, string|int $formId, ?int $raynetCompanyId): int
-    {
+    private function syncLead(
+        array $parsedFormData,
+        string|int $formId,
+        ?int $raynetCompanyId,
+        array $customFields = []
+    ): int {
         $checker = new RaynetDuplicateChecker($this->client);
 
         // Check for existing leads (informational – does NOT block creation)
@@ -465,9 +469,13 @@ class RaynetConnector
             $this->sendDuplicateLeadNotification($formId, $parsedFormData, $existing);
         }
 
-        // Always create a new lead
+        // Always create a new lead, including the same custom fields as the company
         $lead = $this->lead();
         $lead->fromFormData($parsedFormData, $formId, $raynetCompanyId);
+        if (!empty($customFields)) {
+            $lead->setCustomFields($customFields);
+            error_log("Raynet syncLead: attaching " . count($customFields) . " custom fields to lead");
+        }
         $lead->create();
 
         return $lead->getId();

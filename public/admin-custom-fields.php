@@ -135,8 +135,11 @@ header('Content-Type: text/html; charset=utf-8');
                             <button onclick="detectExistingFields()" id="detect-fields-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-md text-sm font-medium">
                                 🔍 Detekovat existující pole
                             </button>
-                            <button onclick="createAllCustomFields()" id="create-all-btn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                ⚡ Vytvořit všechna pole v Raynet
+                            <button onclick="createAllCustomFields('Company')" id="create-all-btn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                ⚡ Vytvořit pole → Company
+                            </button>
+                            <button onclick="createAllCustomFields('Lead')" id="create-all-lead-btn" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                ⚡ Vytvořit pole → Lead
                             </button>
                             <button onclick="applyAutoMapping()" id="apply-mapping-btn" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md text-sm font-medium">
                                 💾 Aplikovat mapování
@@ -1334,7 +1337,7 @@ header('Content-Type: text/html; charset=utf-8');
             }
         }
         
-        async function createAllCustomFields() {
+        async function createAllCustomFields(entityType = 'Company') {
             const customByGroup = autoMappingData?.custom_by_group;
             if (!customByGroup || Object.keys(customByGroup).length === 0) {
                 showToast('Žádné skupiny polí k vytvoření', 'info');
@@ -1343,12 +1346,14 @@ header('Content-Type: text/html; charset=utf-8');
 
             const groups = Object.entries(customByGroup);
             const totalFields = groups.reduce((sum, [, fields]) => sum + Object.keys(fields).length, 0);
+            const entityLabel = entityType === 'Lead' ? 'Lead' : 'Company';
 
-            if (!confirm(`Vytvořit všechna vlastní pole v Raynet?\n\nBude vytvořeno ${totalFields} polí v ${groups.length} skupinách.\nSkupiny se zpracují postupně.`)) {
+            if (!confirm(`Vytvořit všechna vlastní pole v Raynet (${entityLabel})?\n\nBude vytvořeno ${totalFields} polí v ${groups.length} skupinách.\nSkupiny se zpracují postupně.`)) {
                 return;
             }
 
-            const btn = document.getElementById('create-all-btn');
+            const btnId = entityType === 'Lead' ? 'create-all-lead-btn' : 'create-all-btn';
+            const btn = document.getElementById(btnId);
             btn.disabled = true;
 
             let totalCreated = 0;
@@ -1366,7 +1371,7 @@ header('Content-Type: text/html; charset=utf-8');
                 try {
                     const data = await apiCall({
                         action: 'create_fields_batch',
-                        entity_type: 'Company',
+                        entity_type: entityType,
                         form_fields: fieldNames
                     }, true);
 
@@ -1378,11 +1383,11 @@ header('Content-Type: text/html; charset=utf-8');
                         if (r.errors && r.errors.length > 0) {
                             r.errors.forEach(err => allErrors.push({ group: groupLabel, ...err }));
                         }
-                        showToast(`✅ ${groupLabel}: ${(r.created||[]).length} vytvořeno, ${(r.skipped||[]).length} přeskočeno`, 'success');
+                        showToast(`✅ [${entityLabel}] ${groupLabel}: ${(r.created||[]).length} vytvořeno, ${(r.skipped||[]).length} přeskočeno`, 'success');
                     } else {
                         totalErrors += fieldNames.length;
                         allErrors.push({ group: groupLabel, error: data.error || 'Neznámá chyba' });
-                        showToast(`❌ ${groupLabel}: ${data.error || 'Chyba'}`, 'error');
+                        showToast(`❌ [${entityLabel}] ${groupLabel}: ${data.error || 'Chyba'}`, 'error');
                     }
                 } catch (error) {
                     totalErrors += fieldNames.length;
@@ -1413,7 +1418,7 @@ header('Content-Type: text/html; charset=utf-8');
             }
 
             btn.disabled = false;
-            btn.innerHTML = '⚡ Vytvořit všechna pole v Raynet';
+            btn.innerHTML = entityType === 'Lead' ? '⚡ Vytvořit pole → Lead' : '⚡ Vytvořit pole → Company';
 
             // Reload data
             await loadRaynetFields(true);
@@ -1454,7 +1459,7 @@ header('Content-Type: text/html; charset=utf-8');
                 
                 if (data.success) {
                     const result = data.data;
-                    let message = `${groupLabel}: ${(result.created||[]).length} vytvořeno, ${(result.skipped||[]).length} přeskočeno`;
+                    let message = `[Company] ${groupLabel}: ${(result.created||[]).length} vytvořeno, ${(result.skipped||[]).length} přeskočeno`;
                     
                     if (result.errors && result.errors.length > 0) {
                         console.error('Field creation errors:', result.errors);
