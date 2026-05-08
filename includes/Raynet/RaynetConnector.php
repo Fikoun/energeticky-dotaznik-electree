@@ -120,7 +120,7 @@ class RaynetConnector
     /**
      * Get custom field mapping from database
      */
-    private function getFieldMapping(): array
+    private function getFieldMapping(string $settingsKey = 'raynet_field_mapping'): array
     {
         if (!$this->pdo) {
             error_log("Raynet getFieldMapping: No PDO connection");
@@ -134,18 +134,17 @@ class RaynetConnector
                 return [];
             }
             
-            // Use the standard column names (key, value)
-            $stmt = $this->pdo->prepare("SELECT `value` FROM settings WHERE `key` = 'raynet_field_mapping'");
-            $stmt->execute();
+            $stmt = $this->pdo->prepare("SELECT `value` FROM settings WHERE `key` = ?");
+            $stmt->execute([$settingsKey]);
             $row = $stmt->fetch(\PDO::FETCH_ASSOC);
             
             if ($row && $row['value']) {
                 $decoded = json_decode($row['value'], true);
-                error_log("Raynet getFieldMapping: Loaded " . count($decoded ?? []) . " mappings");
+                error_log("Raynet getFieldMapping ({$settingsKey}): Loaded " . count($decoded ?? []) . " mappings");
                 return is_array($decoded) ? $decoded : [];
             }
             
-            error_log("Raynet getFieldMapping: No mapping found in database");
+            error_log("Raynet getFieldMapping ({$settingsKey}): No mapping found in database");
         } catch (\PDOException $e) {
             error_log("Failed to get field mapping: " . $e->getMessage());
         }
@@ -154,16 +153,31 @@ class RaynetConnector
     }
     
     /**
-     * Build custom fields payload for a form
+     * Build custom fields payload for Company/Person entities
      */
     private function buildCustomFieldsPayload(array $formData): array
     {
-        $mapping = $this->getFieldMapping();
+        $mapping = $this->getFieldMapping('raynet_field_mapping');
         
         if (empty($mapping)) {
             return [];
         }
         
+        return $this->customFields()->buildCustomFieldsPayload($formData, $mapping);
+    }
+
+    /**
+     * Build custom fields payload for Lead entity (uses Lead-specific mapping)
+     */
+    private function buildLeadCustomFieldsPayload(array $formData): array
+    {
+        $mapping = $this->getFieldMapping('raynet_lead_field_mapping');
+
+        if (empty($mapping)) {
+            // Fall back to company mapping if no Lead-specific mapping exists yet
+            return $this->buildCustomFieldsPayload($formData);
+        }
+
         return $this->customFields()->buildCustomFieldsPayload($formData, $mapping);
     }
     
@@ -235,9 +249,16 @@ class RaynetConnector
             
             error_log("Raynet sync: Company synced with ID {$result['company_id']}");
 
-            // 2. Sync lead – always create a new lead; duplicate = notify admin only
+            // 2. Sync lead – always create a new lead; duplicate = notify admin only.
+            // Lead uses its own field mapping because Raynet generates different internal
+            // field names per entity type even for identically-labelled fields.
+            $leadCustomFields = $this->buildLeadCustomFieldsPayload($parsedFormData);
+            if (!empty($leadCustomFields)) {
+                error_log("Raynet sync: Including " . count($leadCustomFields) . " Lead custom fields");
+            }
+
             try {
-                $leadId = $this->syncLead($parsedFormData, $formId, $result['company_id'], $customFields);
+                $leadId = $this->syncLead($parsedFormData, $formId, $result['company_id'], $leadCustomFields);
                 $result['lead_id'] = $leadId;
                 error_log("Raynet sync: Lead created with ID {$leadId}");
             } catch (\Exception $e) {

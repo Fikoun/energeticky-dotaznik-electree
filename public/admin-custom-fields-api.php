@@ -373,9 +373,15 @@ try {
                 'errors' => $createResult['errors']
             ]);
             
-            // AUTO-UPDATE MAPPING: Save the actual Raynet field names to the mapping
+            // AUTO-UPDATE MAPPING: Save the actual Raynet field names to the entity-specific mapping.
+            // Lead fields get stored under 'raynet_lead_field_mapping' so they don't collide
+            // with Company field names (Raynet generates different internal names per entity).
+            $mappingSettingsKey = ($entityType === RaynetCustomFields::ENTITY_LEAD)
+                ? 'raynet_lead_field_mapping'
+                : 'raynet_field_mapping';
+
             $mappingUpdated = 0;
-            $currentMapping = getFieldMapping($pdo);
+            $currentMapping = getFieldMapping($pdo, $mappingSettingsKey);
             
             // Add newly created fields to mapping
             if (!empty($createResult['created'])) {
@@ -389,8 +395,8 @@ try {
                 }
             }
             
-            // Also add skipped fields (already existing) to mapping
-            // Note: quota-skipped items do NOT have 'raynetField' (field was never created)
+            // Also add skipped fields (already existing) to mapping.
+            // Note: quota-skipped items do NOT have 'raynetField' (field was never created).
             if (!empty($createResult['skipped'])) {
                 foreach ($createResult['skipped'] as $skippedField) {
                     $formField = $skippedField['formField'];
@@ -404,9 +410,10 @@ try {
             
             // Save updated mapping
             if ($mappingUpdated > 0) {
-                saveFieldMapping($pdo, $currentMapping);
+                saveFieldMapping($pdo, $currentMapping, $mappingSettingsKey);
                 $logger->info(Logger::TYPE_RAYNET, "Auto-updated field mapping after batch creation", [
-                    'updated_fields' => $mappingUpdated
+                    'updated_fields' => $mappingUpdated,
+                    'settings_key' => $mappingSettingsKey,
                 ]);
             }
             
@@ -551,7 +558,7 @@ function isQuotaExceededErrorMessage(string $errorMessage): bool
 /**
  * Get field mapping from database
  */
-function getFieldMapping(PDO $pdo): array
+function getFieldMapping(PDO $pdo, string $settingsKey = 'raynet_field_mapping'): array
 {
     // Check if settings table exists
     $stmt = $pdo->query("SHOW TABLES LIKE 'settings'");
@@ -567,8 +574,8 @@ function getFieldMapping(PDO $pdo): array
         return [];
     }
     
-    $stmt = $pdo->prepare("SELECT `value` FROM settings WHERE `key` = 'raynet_field_mapping'");
-    $stmt->execute();
+    $stmt = $pdo->prepare("SELECT `value` FROM settings WHERE `key` = ?");
+    $stmt->execute([$settingsKey]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if ($row && $row['value']) {
@@ -582,7 +589,7 @@ function getFieldMapping(PDO $pdo): array
 /**
  * Save field mapping to database
  */
-function saveFieldMapping(PDO $pdo, array $mapping): void
+function saveFieldMapping(PDO $pdo, array $mapping, string $settingsKey = 'raynet_field_mapping'): void
 {
     // Ensure settings table exists
     $pdo->exec("
@@ -597,8 +604,8 @@ function saveFieldMapping(PDO $pdo, array $mapping): void
     
     $stmt = $pdo->prepare("
         INSERT INTO settings (`key`, `value`) 
-        VALUES ('raynet_field_mapping', ?)
+        VALUES (?, ?)
         ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)
     ");
-    $stmt->execute([$json]);
+    $stmt->execute([$settingsKey, $json]);
 }
