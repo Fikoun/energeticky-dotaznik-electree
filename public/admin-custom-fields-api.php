@@ -390,10 +390,11 @@ try {
             }
             
             // Also add skipped fields (already existing) to mapping
+            // Note: quota-skipped items do NOT have 'raynetField' (field was never created)
             if (!empty($createResult['skipped'])) {
                 foreach ($createResult['skipped'] as $skippedField) {
                     $formField = $skippedField['formField'];
-                    $raynetField = $skippedField['raynetField'];
+                    $raynetField = $skippedField['raynetField'] ?? null;
                     if ($formField && $raynetField && !isset($currentMapping[$formField])) {
                         $currentMapping[$formField] = $raynetField;
                         $mappingUpdated++;

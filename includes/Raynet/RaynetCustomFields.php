@@ -1593,7 +1593,7 @@ class RaynetCustomFields
             $existingFieldMap[$label] = $field;
         }
 
-        $totalCustomFields = $this->getTotalCustomFieldsCount();
+        $totalCustomFields = $this->getEntityCustomFieldsCount($entityType);
         $availableSlots = max(0, self::CUSTOM_FIELDS_QUOTA - $totalCustomFields);
         
         error_log(
@@ -1785,6 +1785,17 @@ class RaynetCustomFields
         }
 
         return $total;
+    }
+
+    /**
+     * Count custom fields for a specific entity type only.
+     * Raynet's 100-field quota is per entity type, not global.
+     */
+    private function getEntityCustomFieldsCount(string $entityType): int
+    {
+        $config = $this->getConfig();
+        $entityFields = $config[$entityType] ?? [];
+        return is_array($entityFields) ? count($entityFields) : 0;
     }
     
     /**
