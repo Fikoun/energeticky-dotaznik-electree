@@ -1593,14 +1593,32 @@ class RaynetCustomFields
             $existingFieldMap[$label] = $field;
         }
 
-        $totalCustomFields = $this->getEntityCustomFieldsCount($entityType);
-        $availableSlots = max(0, self::CUSTOM_FIELDS_QUOTA - $totalCustomFields);
-        
+        // Raynet's 100-field quota is GLOBAL across ALL entity types combined.
+        // Available slots = min(entity room, global room).
+        $entityFieldCount = $this->getEntityCustomFieldsCount($entityType);
+        $globalFieldCount  = $this->getTotalCustomFieldsCount();
+
+        $entityAvailable = max(0, self::CUSTOM_FIELDS_QUOTA - $entityFieldCount);
+        $globalAvailable = max(0, self::CUSTOM_FIELDS_QUOTA - $globalFieldCount);
+        $availableSlots  = min($entityAvailable, $globalAvailable);
+
+        $quotaBlockedBy = $globalAvailable === 0 ? 'global' : ($entityAvailable === 0 ? 'entity' : 'none');
+
         error_log(
-            "createFieldsFromFormMapping: Found " . count($existingLabels) .
-            " existing {$entityType} fields in Raynet, total fields: {$totalCustomFields}, " .
-            "available slots: {$availableSlots}/" . self::CUSTOM_FIELDS_QUOTA
+            "createFieldsFromFormMapping: {$entityType} fields: {$entityFieldCount}, " .
+            "global total: {$globalFieldCount}/" . self::CUSTOM_FIELDS_QUOTA . ", " .
+            "available slots: {$availableSlots} (entity: {$entityAvailable}, global: {$globalAvailable}), " .
+            "blocked_by: {$quotaBlockedBy}"
         );
+
+        if ($availableSlots === 0 && $quotaBlockedBy === 'global') {
+            error_log(
+                "createFieldsFromFormMapping: QUOTA FULL – global limit reached ({$globalFieldCount}/{" .
+                self::CUSTOM_FIELDS_QUOTA . "}). " .
+                "Delete some Company/Person fields in Raynet to make room for {$entityType} fields, " .
+                "or ask Raynet support to increase your custom field quota."
+            );
+        }
 
         $pendingFields = [];
         
@@ -1652,12 +1670,18 @@ class RaynetCustomFields
         });
 
         if ($availableSlots === 0 && !empty($pendingFields)) {
+            $skipReason = $quotaBlockedBy === 'global'
+                ? "Kvóta plná: {$globalFieldCount}/" . self::CUSTOM_FIELDS_QUOTA . " polí celkem (smažte Company/Person pole nebo navyšte kvótu v Raynet)"
+                : 'Přeskočeno: dosažen limit 100 vlastních polí pro tento typ entity';
+
             foreach ($pendingFields as $pendingField) {
                 $results['skipped'][] = [
-                    'formField' => $pendingField['formField'],
-                    'label' => $pendingField['fieldDef']['label'] ?? $pendingField['formField'],
-                    'reason' => 'Přeskočeno: dosažen limit 100 vlastních polí v Raynet',
+                    'formField'     => $pendingField['formField'],
+                    'label'         => $pendingField['fieldDef']['label'] ?? $pendingField['formField'],
+                    'reason'        => $skipReason,
                     'quotaExceeded' => true,
+                    'globalCount'   => $globalFieldCount,
+                    'entityCount'   => $entityFieldCount,
                 ];
             }
 
@@ -1673,10 +1697,12 @@ class RaynetCustomFields
 
             if (count($results['created']) >= $availableSlots) {
                 $results['skipped'][] = [
-                    'formField' => $formField,
-                    'label' => $fieldLabel,
-                    'reason' => 'Přeskočeno: dosažen limit 100 vlastních polí v Raynet',
+                    'formField'     => $formField,
+                    'label'         => $fieldLabel,
+                    'reason'        => "Kvóta plná: {$globalFieldCount}/" . self::CUSTOM_FIELDS_QUOTA . " polí celkem",
                     'quotaExceeded' => true,
+                    'globalCount'   => $globalFieldCount,
+                    'entityCount'   => $entityFieldCount,
                 ];
                 continue;
             }
@@ -1714,23 +1740,35 @@ class RaynetCustomFields
                 $errorMessage = $e->getMessage();
 
                 if ($this->isQuotaExceededError($errorMessage)) {
-                    error_log("createFieldsFromFormMapping: Quota reached while creating {$formField}: {$errorMessage}");
+                    // Raynet confirmed quota is globally full — refresh actual count for accurate reporting.
+                    $actualGlobal = $this->getTotalCustomFieldsCount();
+                    error_log(
+                        "createFieldsFromFormMapping: QUOTA FULL (Raynet 403) while creating {$formField}. " .
+                        "Global total now: {$actualGlobal}/" . self::CUSTOM_FIELDS_QUOTA . ". " .
+                        "Delete Company/Person fields in Raynet to make room, or request a quota increase."
+                    );
+
+                    $skipReason = "Kvóta plná: {$actualGlobal}/" . self::CUSTOM_FIELDS_QUOTA . " polí celkem (Raynet 403 – smazat Company/Person pole nebo navýšit kvótu)";
 
                     // Mark current and remaining fields as skipped due to quota.
                     $results['skipped'][] = [
-                        'formField' => $formField,
-                        'label' => $fieldLabel,
-                        'reason' => 'Přeskočeno: dosažen limit 100 vlastních polí v Raynet',
+                        'formField'     => $formField,
+                        'label'         => $fieldLabel,
+                        'reason'        => $skipReason,
                         'quotaExceeded' => true,
+                        'globalCount'   => $actualGlobal,
+                        'entityCount'   => $entityFieldCount,
                     ];
 
                     for ($j = $i + 1; $j < count($pendingFields); $j++) {
                         $remainingField = $pendingFields[$j];
                         $results['skipped'][] = [
-                            'formField' => $remainingField['formField'],
-                            'label' => $remainingField['fieldDef']['label'] ?? $remainingField['formField'],
-                            'reason' => 'Přeskočeno: dosažen limit 100 vlastních polí v Raynet',
+                            'formField'     => $remainingField['formField'],
+                            'label'         => $remainingField['fieldDef']['label'] ?? $remainingField['formField'],
+                            'reason'        => $skipReason,
                             'quotaExceeded' => true,
+                            'globalCount'   => $actualGlobal,
+                            'entityCount'   => $entityFieldCount,
                         ];
                     }
 
